@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Aperture // AI Camera</title>
+  
+  <!-- PWA META -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  
+  <!-- Premium UI Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ----- RESET & BASE ----- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: #000000;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      /* Mobile viewport bug fix for PWAs */
+      height: 100dvh;
+      width: 100vw;
+      color: #ffffff;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      position: relative;
+    }
+    
+    .camera-stage {
+      flex: 1;
+      position: relative;
+      background: #000000;
+      overflow: hidden;
+    }
+    
+    .camera-viewport {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    #webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transform: scaleX(-1);
+      transition: transform 0.1s linear;
+    }
+    
+    #overlayCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      transform: scaleX(-1);
+    }
+    
+    /* ----- CINEMATIC VIEWFINDER BRACKETS ----- */
+    .viewfinder {
+      position: absolute;
+      inset: 24px;
+      pointer-events: none;
+      z-index: 10;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .vf-corner {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-color: rgba(255, 255, 255, 0.4);
+      border-style: solid;
+      transition: border-color 0.3s;
+    }
+    
+    .vf-tl {
+      top: 0;
+      left: 0;
+      border-width: 2px 0 0 2px;
+    }
+    
+    .vf-tr {
+      top: 0;
+      right: 0;
+      border-width: 2px 2px 0 0;
+    }
+    
+    .vf-bl {
+      bottom: 0;
+      left: 0;
+      border-width: 0 0 2px 2px;
+    }
+    
+    .vf-br {
+      bottom: 0;
+      right: 0;
+      border-width: 0 2px 2px 0;
+    }
+    
+    /* ----- FLASH ANIMATION ----- */
+    #flash-overlay {
+      position: absolute;
+      inset: 0;
+      background: #ffffff;
+      z-index: 40;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    #flash-overlay.active {
+      opacity: 1;
+      transition: opacity 0.05s ease-out;
+    }
+    
+    /* ----- TOP HUD ----- */
+    .top-hud {
+      position: absolute;
+      top: 36px;
+      left: 36px;
+      right: 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 25;
+      pointer-events: none;
+    }
+    
+    .glass-panel {
+      pointer-events: auto;
+      background: rgba(15, 15, 20, 0.4);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 100px;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    
+    .brand {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+    
+    .brand svg {
+      width: 20px;
+      height: 20px;
+      stroke: #ffffff;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4b5563;
+      transition: all 0.3s ease;
+    }
+    
+    .status-dot.track {
+      background: #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+    }
+    
+    .status-dot.warning {
+      background: #f59e0b;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+    }
+    
+    .status-dot.alert {
+      background: #ef4444;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+    }
+    
+    .status-dot.zoom {
+      background: #3b82f6;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+    }
+    
+    #gestureLabel {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #e5e7eb;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    /* ----- BOTTOM GALLERY DOCK ----- */
+    .gallery-dock {
+      position: absolute;
+      bottom: 36px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: calc(100vw - 72px);
+      z-index: 25;
+      display: flex;
+      gap: 16px;
+      padding: 12px;
+      border-radius: 24px;
+      background: rgba(15, 15, 20, 0.3);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      overflow-x: auto;
+      scrollbar-width: none;
+      pointer-events: auto;
+    }
+    
+    .gallery-dock::-webkit-scrollbar {
+      display: none;
+    }
+    
+    .gallery-dock:empty {
+      display: none;
+    }
+    
+    .snapshot-item {
+      position: relative;
+      flex: 0 0 auto;
+      width: 72px;
+      height: 72px;
+      border-radius: 14px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+      background: #000;
+    }
+    
+    .snapshot-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s ease;
+    }
+    
+    .snapshot-item:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255, 255, 255, 0.6);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+    }
+    
+    .snapshot-item:hover img {
+      transform: scale(1.1);
+    }
+    
+    .download-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    .snapshot-item:hover .download-overlay {
+      opacity: 1;
+    }
+    
+    .download-overlay svg {
+      width: 24px;
+      height: 24px;
+      stroke: #ffffff;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    
+    /* ----- LOADER ----- */
+    #loader {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+      gap: 24px;
+    }
+    
+    .spinner-svg {
+      width: 48px;
+      height: 48px;
+      animation: spin 2s linear infinite;
+      stroke: #ffffff;
+      fill: none;
+      stroke-width: 2;
+      stroke-dasharray: 90 150;
+      stroke-dashoffset: 0;
+      stroke-linecap: round;
+    }
+    
+    @keyframes spin {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+    
+    #loaderText {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      color: #ffffff;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    
+    #loaderSubtext {
+      font-size: 12px;
+      font-weight: 500;
+      color: #9ca3af;
+      letter-spacing: 0.05em;
+    }
+    
+    /* PWA Start Button (Hidden by default) */
+    #startBtn {
+      display: none;
+      margin-top: 20px;
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 100px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    
+    #startBtn:active {
+      transform: scale(0.95);
+    }
+    
+    /* ----- MOBILE RESPONSIVE ----- */
+    @media (max-width: 600px) {
+      .viewfinder {
+        inset: 16px;
+      }
+      
+      .top-hud {
+        top: 24px;
+        left: 16px;
+        right: 16px;
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      
+      .gallery-dock {
+        bottom: 24px;
+        padding: 10px;
+        border-radius: 20px;
+        max-width: calc(100vw - 32px);
+      }
+      
+      .snapshot-item {
+        width: 64px;
+        height: 64px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  
+  <!-- LOADER -->
+  <div id="loader">
+    <svg class="spinner-svg" id="spinner" viewBox="0 0 50 50">
+      <circle cx="25" cy="25" r="20"></circle>
+    </svg>
+    <div style="text-align: center;">
+      <div id="loaderText">Initializing Sensors</div>
+      <div id="loaderSubtext">Connecting to ML Nodes...</div>
+      <button id="startBtn">Tap to Activate</button>
+    </div>
+  </div>
+  
+  <!-- MAIN APP -->
+  <div class="app">
+    <div class="camera-stage">
+      <div class="viewfinder" id="viewfinder">
+        <div class="vf-corner vf-tl"></div>
+        <div class="vf-corner vf-tr"></div>
+        <div class="vf-corner vf-bl"></div>
+        <div class="vf-corner vf-br"></div>
+      </div>
+      
+      <div class="camera-viewport">
+        <!-- Playsinline is mandatory for PWA iOS video feeds -->
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="overlayCanvas"></canvas>
+        <div id="flash-overlay"></div>
+        
+        <div class="gallery-dock" id="galleryContainer"></div>
+        
+        <div class="top-hud">
+          <div class="glass-panel brand">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+              <line x1="12" y1="2" x2="12" y2="4"></line>
+              <line x1="12" y1="20" x2="12" y2="22"></line>
+              <line x1="2" y1="12" x2="4" y2="12"></line>
+              <line x1="20" y1="12" x2="22" y2="12"></line>
+            </svg>
+            APERTURE
+          </div>
+          <div class="glass-panel status-group">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="gestureLabel">Standby</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Register PWA safely -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => console.log('SW Registration failed'));
+      });
+    }
+  </script>
+  
+  <!-- MAIN LOGIC -->
+  <script type="module">
+    import { FaceLandmarker, HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.19/vision_bundle.mjs";
+    
+    const video = document.getElementById('webcam');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const gallery = document.getElementById('galleryContainer');
+    const flash = document.getElementById('flash-overlay');
+    const statusDot = document.getElementById('statusDot');
+    const gestureLabel = document.getElementById('gestureLabel');
+    const loader = document.getElementById('loader');
+    const loaderText = document.getElementById('loaderText');
+    const loaderSubtext = document.getElementById('loaderSubtext');
+    const spinner = document.getElementById('spinner');
+    const startBtn = document.getElementById('startBtn');
+    const vfCorners = document.querySelectorAll('.vf-corner');
+    
+    let faceLandmarker = null;
+    let handLandmarker = null;
+    let lastVideoTime = -1;
+    let isShutterCooldown = false;
+    let currentZoom = 1.0;
+    let targetZoom = 1.0;
+    
+    let nodStartTime = 0;
+    let isPrimedForSnap = false;
+    
+    function getDistance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+    
+    function parseNodGesture(landmarks) {
+      const now = Date.now();
+      const upper = getDistance(landmarks[10], landmarks[1]);
+      const lower = getDistance(landmarks[1], landmarks[152]);
+      const ratio = lower / upper;
+      
+      if (ratio < 0.85) {
+        if (nodStartTime === 0) nodStartTime = now;
+        if (now - nodStartTime > 100) {
+          isPrimedForSnap = true;
+          return 'PRIMED';
+        }
+        return 'NOD';
+      } else {
+        nodStartTime = 0;
+        if (isPrimedForSnap && ratio > 0.98) {
+          isPrimedForSnap = false;
+          return 'SNAP';
+        }
+        if (ratio > 0.98) isPrimedForSnap = false;
+        return 'TRACK';
+      }
+    }
+    
+    function handleHandZoom(handLandmarks) {
+      if (!handLandmarks || handLandmarks.length === 0) return false;
+      const dist = Math.hypot(handLandmarks[0][4].x - handLandmarks[0][8].x, handLandmarks[0][4].y - handLandmarks[0][8].y);
+      targetZoom = Math.min(3.0, Math.max(1.0, 1.0 + (dist - 0.03) * 10));
+      return true;
+    }
+    
+    function executeSnap() {
+      if (isShutterCooldown) return;
+      isShutterCooldown = true;
+      flash.classList.add('active');
+      setTimeout(() => flash.classList.remove('active'), 50);
+      takeSnapshot();
+      setTimeout(() => isShutterCooldown = false, 1200);
+    }
+    
+    function takeSnapshot() {
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const cx = c.getContext('2d');
+      cx.translate(w, 0);
+      cx.scale(-1, 1);
+      cx.drawImage(video, 0, 0, w, h);
+      
+      const dataUrl = c.toDataURL('image/png');
+      const wrapper = document.createElement('div');
+      wrapper.className = 'snapshot-item';
+      
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      const overlay = document.createElement('div');
+      overlay.className = 'download-overlay';
+      overlay.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+      
+      wrapper.appendChild(img);
+      wrapper.appendChild(overlay);
+      wrapper.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `Aperture_${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+      
+      gallery.prepend(wrapper);
+      if (gallery.children.length > 20) gallery.removeChild(gallery.lastChild);
+    }
+    
+    function updateUI(faceStatus, isHand) {
+      let cornerColor = 'rgba(255, 255, 255, 0.4)';
+      statusDot.className = 'status-dot';
+      
+      if (faceStatus === 'SNAP') { statusDot.classList.add('alert');
+        gestureLabel.textContent = 'Capture';
+        cornerColor = '#ef4444'; }
+      else if (faceStatus === 'PRIMED') { statusDot.classList.add('warning');
+        gestureLabel.textContent = 'Release';
+        cornerColor = '#f59e0b'; }
+      else if (faceStatus === 'NOD') { statusDot.classList.add('warning');
+        gestureLabel.textContent = 'Nodding';
+        cornerColor = '#f59e0b'; }
+      else if (isHand) { statusDot.classList.add('zoom');
+        gestureLabel.textContent = `Zoom ${currentZoom.toFixed(1)}x`;
+        cornerColor = '#3b82f6'; }
+      else if (faceStatus === 'TRACK') { statusDot.classList.add('track');
+        gestureLabel.textContent = 'Tracking';
+        cornerColor = '#10b981'; }
+      else { gestureLabel.textContent = 'Scanning';
+        cornerColor = 'rgba(255, 255, 255, 0.1)'; }
+      
+      vfCorners.forEach(c => c.style.borderColor = cornerColor);
+    }
+    
+    function predictWebcam() {
+      currentZoom += (targetZoom - currentZoom) * 0.15;
+      video.style.transform = `scaleX(-1) scale(${currentZoom})`;
+      
+      if (video.currentTime !== lastVideoTime && video.videoWidth > 0 && faceLandmarker && handLandmarker) {
+        lastVideoTime = video.currentTime;
+        const now = performance.now();
+        
+        const faceResult = faceLandmarker.detectForVideo(video, now);
+        const handResult = handLandmarker.detectForVideo(video, now);
+        
+        let faceStatus = 'NONE';
+        let isHand = false;
+        
+        if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
+          faceStatus = parseNodGesture(faceResult.faceLandmarks[0]);
+          if (faceStatus === 'SNAP') executeSnap();
+        } else {
+          nodStartTime = 0;
+          isPrimedForSnap = false;
+        }
+        
+        isHand = handleHandZoom(handResult.landmarks);
+        updateUI(faceStatus, isHand);
+      }
+      requestAnimationFrame(predictWebcam);
+    }
+    
+    // Initialize Models
+    async function bootML() {
+      try {
+        const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.19/wasm');
+        
+        faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: 'CPU' },
+          outputFaceBlendshapes: false,
+          runningMode: 'VIDEO',
+          numFaces: 1
+        });
+        
+        handLandmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate: 'CPU' },
+          runningMode: 'VIDEO',
+          numHands: 1
+        });
+        
+        loader.style.display = 'none';
+        requestAnimationFrame(predictWebcam);
+      } catch (err) {
+        loaderText.textContent = "AI Model Failed";
+        loaderSubtext.textContent = "Please connect to the internet to load ML models.";
+      }
+    }
+    
+    // App Startup Sequence
+    async function initCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } });
+        video.srcObject = stream;
+        await video.play();
+        bootML(); // Only load ML if camera succeeds
+      } catch (err) {
+        // PWA Autoplay Block Detected! Show manual start button.
+        spinner.style.display = 'none';
+        loaderText.textContent = 'Camera Paused';
+        loaderSubtext.textContent = 'PWAs require user interaction to start the camera.';
+        startBtn.style.display = 'inline-block';
+        
+        startBtn.addEventListener('click', async () => {
+          startBtn.style.display = 'none';
+          spinner.style.display = 'block';
+          loaderText.textContent = 'Requesting Camera...';
+          initCamera(); // Try again after user tap
+        });
+      }
+    }
+    
+    initCamera();
+  </script>
+</body>
+
+</html>
