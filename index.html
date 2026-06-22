@@ -77,8 +77,9 @@
     
     #gestureLabel { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #e5e7eb; font-variant-numeric: tabular-nums; }
     
-    .mic-icon { font-size: 14px; opacity: 0.3; transition: opacity 0.3s; }
-    .mic-icon.listening { opacity: 1; text-shadow: 0 0 8px rgba(255,255,255,0.8); }
+    .mic-icon { display: flex; align-items: center; justify-content: center; opacity: 0.3; transition: all 0.3s; }
+    .mic-icon svg { width: 14px; height: 14px; stroke: #ffffff; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .mic-icon.listening { opacity: 1; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8)); }
 
     /* ----- BOTTOM GALLERY DOCK ----- */
     .gallery-dock {
@@ -148,7 +149,13 @@
           <div class="glass-panel status-group">
             <span class="status-dot" id="statusDot"></span>
             <span id="gestureLabel">Booting...</span>
-            <span class="mic-icon" id="micIcon">🎙️</span>
+            <span class="mic-icon" id="micIcon">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="22"></line>
+              </svg>
+            </span>
           </div>
         </div>
       </div>
@@ -292,7 +299,7 @@
       } else if (cameraState === 'ARMED') {
         label = 'NOD TO SNAP'; colorClass = 'active'; cornerColor = '#10b981';
       } else {
-        label = 'STANDBY (✌️ TO ARM)'; colorClass = 'standby'; cornerColor = 'rgba(255, 255, 255, 0.1)';
+        label = 'STANDBY (2 FINGERS TO ARM)'; colorClass = 'standby'; cornerColor = 'rgba(255, 255, 255, 0.1)';
       }
 
       gestureLabel.textContent = label;
