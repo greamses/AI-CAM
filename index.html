@@ -320,7 +320,7 @@
             <span class="tel-val off" id="telHand">--</span>
           </div>
           <div class="tel-row">
-            <span class="tel-key">NOD</span>
+            <span class="tel-key">PINCH</span>
             <div class="tel-bar"><i id="telNodBar"></i></div>
             <span class="tel-val" id="telNodVal">00%</span>
           </div>
@@ -390,55 +390,47 @@
     let snapCountdownStart = 0;
     let lastCountNumber = -1;
 
+    const ARM_SECONDS = 3;    // hold-to-arm
+    const SNAP_SECONDS = 5;   // photo countdown
+
     // Live telemetry signals
     let faceTracked = false;
     let handTracked = false;
-    let nodSignal = 0;     // 0..1 how close to triggering a nod
+    let pinchSignal = 0;   // 0..1 how closed the pinch is
     let fpsValue = 0;
     let lastFrameStamp = 0;
 
-    // ---------- 1. NOD DETECTION (original logic, tuned faster + more sensitive) ----------
-    // ratio = (nose->chin) / (forehead->nose). Dips when the head tilts down,
-    // recovers as it comes back up. Dip-then-recover = a nod.
+    // ---------- 1. PINCH + GESTURE DETECTION ----------
     function getDistance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
-    let nodStartTime = 0;
-    let isPrimedForSnap = false;
+    // Pinch ratio = thumb-tip<->index-tip gap normalized by palm length
+    // (wrist <-> middle MCP). Because both scale with hand distance, the ratio
+    // stays constant whether the hand is near or far -> reliable from a distance.
+    const PINCH_ON = 0.55;    // ratio below this = pinched (generous for far hands)
+    const PINCH_OFF = 0.80;   // ratio above this = released (hysteresis)
+    let wasPinched = false;
 
-    const NOD_DIP = 0.94;     // higher than original 0.90 -> primes on slighter nods
-    const NOD_HOLD = 0;       // ms held in the dip before priming (instant)
-    const NOD_SNAP = 0.96;    // recover above this to fire (was 0.95)
-    const NOD_RESET = 1.10;   // looking too far up cancels the prime
-
-    function detectNod(landmarks) {
-      if (!landmarks || landmarks.length === 0) { nodSignal = 0; return false; }
-
-      const now = Date.now();
-      const upper = getDistance(landmarks[10], landmarks[1]);   // forehead -> nose
-      const lower = getDistance(landmarks[1], landmarks[152]);  // nose -> chin
-      if (upper === 0) { nodSignal = 0; return false; }
-      const ratio = lower / upper;
-
-      // HUD signal: how deep into the dip we are (0..1)
-      nodSignal = Math.max(0, Math.min(1, (1 - ratio) / (1 - NOD_DIP)));
-
-      if (ratio < NOD_DIP) {
-        if (nodStartTime === 0) nodStartTime = now;
-        if (now - nodStartTime >= NOD_HOLD) isPrimedForSnap = true;
-      } else {
-        nodStartTime = 0;
-        if (isPrimedForSnap && ratio > NOD_SNAP) {
-          isPrimedForSnap = false;
-          return true; // snap!
-        }
-        if (ratio > NOD_RESET) isPrimedForSnap = false;
-      }
-      return false;
+    function getPinchRatio(landmarks) {
+      const lm = landmarks[0];
+      const gap = getDistance(lm[4], lm[8]);             // thumb tip -> index tip
+      const palm = getDistance(lm[0], lm[9]) || 0.0001;  // wrist -> middle MCP
+      return gap / palm;
     }
 
-    function resetNod() { nodStartTime = 0; isPrimedForSnap = false; nodSignal = 0; }
+    // Returns true once on the pinch edge (open -> closed). Hysteresis prevents
+    // repeat fires while held; pinchSignal feeds the HUD bar.
+    function detectPinch(landmarks) {
+      const ratio = getPinchRatio(landmarks);
+      pinchSignal = Math.max(0, Math.min(1, (PINCH_OFF - ratio) / (PINCH_OFF - PINCH_ON)));
 
-    // ---------- 2. GESTURES & ZOOM ----------
+      let fired = false;
+      if (!wasPinched && ratio < PINCH_ON) { wasPinched = true; fired = true; }
+      else if (wasPinched && ratio > PINCH_OFF) { wasPinched = false; }
+      return fired;
+    }
+
+    function resetPinch() { wasPinched = false; pinchSignal = 0; }
+
     function getFingersUpCount(landmarks) {
       if (!landmarks || landmarks.length === 0) return 'NONE';
       const lm = landmarks[0];
@@ -451,14 +443,13 @@
 
       if (index && middle && !ring && !pinky) return 'TWO';
       if (index && middle && ring && !pinky) return 'THREE';
-
-      handleHandZoom(landmarks);
       return 'OTHER';
     }
 
-    function handleHandZoom(landmarks) {
-      const dist = Math.hypot(landmarks[0][4].x - landmarks[0][8].x, landmarks[0][4].y - landmarks[0][8].y);
-      targetZoom = Math.min(3.0, Math.max(1.0, 1.0 + (dist - 0.03) * 10));
+    // STANDBY-only zoom: spread between thumb and index drives zoom, distance-invariant.
+    function handlePinchZoom(landmarks) {
+      const ratio = getPinchRatio(landmarks);
+      targetZoom = Math.min(3.0, Math.max(1.0, 1.0 + (ratio - 0.4) * 2.2));
     }
 
     // ---------- 3. CAMERA CONTROLS ----------
@@ -513,7 +504,7 @@
       if (isShutterCooldown) {
         label = 'SHOT'; colorClass = 'alert'; cornerColor = 'var(--red)';
       } else if (cameraState === 'SNAP_COUNTDOWN') {
-        const left = Math.ceil(3 - (Date.now() - snapCountdownStart) / 1000);
+        const left = Math.ceil(SNAP_SECONDS - (Date.now() - snapCountdownStart) / 1000);
         label = 'SHOOT'; colorClass = 'alert'; cornerColor = 'var(--red)';
 
         centerCountdown.style.display = 'flex';
@@ -525,10 +516,10 @@
           lastCountNumber = left;
         }
       } else if (cameraState === 'ARM_COUNTDOWN') {
-        const left = Math.ceil(3 - (Date.now() - armCountdownStart) / 1000);
+        const left = Math.ceil(ARM_SECONDS - (Date.now() - armCountdownStart) / 1000);
         label = `ARM ${left}`; colorClass = 'warning'; cornerColor = 'var(--amber)';
       } else if (cameraState === 'ARMED') {
-        label = 'NOD'; colorClass = 'active'; cornerColor = 'var(--green)';
+        label = 'PINCH'; colorClass = 'active'; cornerColor = 'var(--green)';
       } else {
         label = 'STANDBY'; colorClass = 'standby'; cornerColor = 'rgba(255, 255, 255, 0.1)';
       }
@@ -547,9 +538,9 @@
       telHand.textContent = handTracked ? 'OK' : '--';
       telHand.className = 'tel-val ' + (handTracked ? 'on' : 'off');
 
-      const pct = Math.round(nodSignal * 100);
+      const pct = Math.round(pinchSignal * 100);
       telNodBar.style.width = pct + '%';
-      telNodBar.style.background = nodSignal > 0.85 ? 'var(--red)' : nodSignal > 0.4 ? 'var(--amber)' : 'var(--green)';
+      telNodBar.style.background = pinchSignal > 0.85 ? 'var(--green)' : pinchSignal > 0.4 ? 'var(--amber)' : 'var(--grey)';
       telNodVal.textContent = String(pct).padStart(2, '0') + '%';
 
       telZoom.textContent = currentZoom.toFixed(2) + 'x';
@@ -579,33 +570,44 @@
         handTracked = !!(handResult.landmarks && handResult.landmarks.length > 0);
         if (handTracked) {
           const gesture = getFingersUpCount(handResult.landmarks);
+
+          // Mode switching via finger count
           if (gesture === 'TWO' && cameraState === 'STANDBY') {
             cameraState = 'ARM_COUNTDOWN';
             armCountdownStart = Date.now();
           } else if (gesture === 'THREE') {
             cameraState = 'STANDBY';
+            resetPinch();
           }
+
+          // STANDBY: pinch spread controls zoom (only here)
+          if (cameraState === 'STANDBY') {
+            handlePinchZoom(handResult.landmarks);
+            pinchSignal = 0;
+          }
+          // ARMED: a pinch fires the snap countdown (zoom disabled)
+          else if (cameraState === 'ARMED') {
+            if (detectPinch(handResult.landmarks)) startSnapCountdown();
+          } else {
+            pinchSignal = 0;
+          }
+        } else {
+          resetPinch();
         }
 
         // Timers
-        if (cameraState === 'ARM_COUNTDOWN' && Date.now() - armCountdownStart >= 3000) cameraState = 'ARMED';
-        if (cameraState === 'SNAP_COUNTDOWN' && Date.now() - snapCountdownStart >= 3000) {
+        if (cameraState === 'ARM_COUNTDOWN' && Date.now() - armCountdownStart >= ARM_SECONDS * 1000) {
+          cameraState = 'ARMED';
+          resetPinch();
+        }
+        if (cameraState === 'SNAP_COUNTDOWN' && Date.now() - snapCountdownStart >= SNAP_SECONDS * 1000) {
           executeSnap();
           cameraState = 'ARMED';
-          resetNod();
+          resetPinch();
         }
 
-        // Face
+        // Face (used for framing lock + telemetry only)
         faceTracked = !!(faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0);
-        if (faceTracked) {
-          if (cameraState === 'ARMED') {
-            if (detectNod(faceResult.faceLandmarks[0])) startSnapCountdown();
-          } else {
-            resetNod();
-          }
-        } else {
-          resetNod();
-        }
 
         updateUI();
       }
