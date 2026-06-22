@@ -125,9 +125,7 @@
         <canvas id="overlayCanvas"></canvas>
         <div id="flash-overlay"></div>
         
-        <!-- Giant Center Countdown -->
         <div id="centerCountdown">3</div>
-
         <div class="gallery-dock" id="galleryContainer"></div>
         
         <div class="top-hud">
@@ -171,45 +169,47 @@
     let currentZoom = 1.0;
     let targetZoom = 1.0;
     
-    // States: 'STANDBY', 'ARM_COUNTDOWN', 'ARMED', 'SNAP_COUNTDOWN'
     let cameraState = 'STANDBY'; 
     let armCountdownStart = 0;
     let snapCountdownStart = 0;
-    let lastCountNumber = -1; // Prevents re-triggering CSS animation on same number
-    let pitchHistory = [];
+    let lastCountNumber = -1; 
     
-    // --- 1. HYPER-SENSITIVE NOD DETECTION ---
+    // Original-Style Nod State Variables
+    let nodStartTime = 0;
+    let isPrimedForSnap = false;
+
+    // --- 1. RESTORED & IMPROVED NOD MATH ---
+    function getDistance(a, b) { 
+      return Math.hypot(a.x - b.x, a.y - b.y); 
+    }
+    
     function detectNod(landmarks) {
       if (!landmarks || landmarks.length === 0) return false;
-      const top = landmarks[10];     // Top of head
-      const bottom = landmarks[152]; // Chin
-      const nose = landmarks[1];     // Tip of nose
       
-      // Compare distances: Nose-to-Top vs Nose-to-Bottom
-      const upperDist = Math.hypot(nose.x - top.x, nose.y - top.y);
-      const lowerDist = Math.hypot(nose.x - bottom.x, nose.y - bottom.y);
-      
-      if (upperDist === 0) return false;
-      
-      // When tilting down, the nose moves closer to chin, so ratio drops sharply.
-      const ratio = lowerDist / upperDist; 
       const now = Date.now();
+      const upper = getDistance(landmarks[10], landmarks[1]);  // Forehead to Nose
+      const lower = getDistance(landmarks[1], landmarks[152]); // Nose to Chin
       
-      pitchHistory.push({ time: now, val: ratio });
-      pitchHistory = pitchHistory.filter(p => now - p.time < 600); // 600ms window
+      if (upper === 0) return false;
+      const ratio = lower / upper;
       
-      if (pitchHistory.length < 5) return false;
-      
-      const maxR = Math.max(...pitchHistory.map(p => p.val));
-      const minR = Math.min(...pitchHistory.map(p => p.val));
-      
-      // Drop threshold: 0.08 (highly sensitive to even subtle dips)
-      if (maxR - minR > 0.08) {
-        const latest = pitchHistory[pitchHistory.length - 1].val;
-        // Ensure head has started to bounce back up
-        if (latest > minR + (maxR - minR) * 0.4) {
-          pitchHistory = []; // Reset to prevent rapid double-fire
-          return true;
+      // Original used 0.85. 0.90 makes it more sensitive to very slight downward nods.
+      if (ratio < 0.90) {
+        if (nodStartTime === 0) nodStartTime = now;
+        // Reduced hold time to 50ms for hyper-responsiveness
+        if (now - nodStartTime > 50) {
+          isPrimedForSnap = true;
+        }
+      } else {
+        nodStartTime = 0;
+        // Original used 0.98. 0.95 means it triggers quicker on the way back up.
+        if (isPrimedForSnap && ratio > 0.95) {
+          isPrimedForSnap = false;
+          return true; // Snap!
+        }
+        // Safety reset if looking too far up
+        if (ratio > 1.05) {
+          isPrimedForSnap = false;
         }
       }
       return false;
@@ -243,7 +243,7 @@
       if (cameraState === 'SNAP_COUNTDOWN' || isShutterCooldown) return;
       cameraState = 'SNAP_COUNTDOWN';
       snapCountdownStart = Date.now();
-      lastCountNumber = -1; // Reset animation tracker
+      lastCountNumber = -1;
     }
 
     function executeSnap() {
@@ -252,7 +252,6 @@
       flash.classList.add('active');
       setTimeout(() => flash.classList.remove('active'), 50);
       takeSnapshot();
-      
       setTimeout(() => isShutterCooldown = false, 1500); 
     }
     
@@ -286,8 +285,6 @@
     // --- 4. UI RENDERER ---
     function updateUI() {
       let label = ''; let colorClass = ''; let cornerColor = 'rgba(255, 255, 255, 0.4)';
-      
-      // Hide center countdown by default
       centerCountdown.style.display = 'none';
 
       if (isShutterCooldown) {
@@ -296,17 +293,14 @@
         const left = Math.ceil(3 - (Date.now() - snapCountdownStart) / 1000);
         label = `SNAPPING IN ${left}...`; colorClass = 'alert'; cornerColor = '#ef4444';
         
-        // Show giant center timer
         centerCountdown.style.display = 'flex';
         centerCountdown.textContent = left;
-        // Retrigger CSS animation on number change
         if (left !== lastCountNumber) {
           centerCountdown.style.animation = 'none';
-          void centerCountdown.offsetWidth; // trigger reflow
+          void centerCountdown.offsetWidth; 
           centerCountdown.style.animation = 'popIn 1s infinite cubic-bezier(0.2, 0, 0, 1)';
           lastCountNumber = left;
         }
-
       } else if (cameraState === 'ARM_COUNTDOWN') {
         const left = Math.ceil(3 - (Date.now() - armCountdownStart) / 1000);
         label = `ARMING IN ${left}...`; colorClass = 'warning'; cornerColor = '#f59e0b';
@@ -323,7 +317,6 @@
     
     // --- 5. PREDICTION LOOP ---
     function predictWebcam() {
-      // Smooth Zoom Transition
       currentZoom += (targetZoom - currentZoom) * 0.15;
       video.style.transform = `scaleX(-1) scale(${currentZoom})`;
       
@@ -334,7 +327,7 @@
         const faceResult = faceLandmarker.detectForVideo(video, now);
         const handResult = handLandmarker.detectForVideo(video, now);
         
-        // 1. Process Hands
+        // Process Hands
         if (handResult.landmarks && handResult.landmarks.length > 0) {
           const gesture = getFingersUpCount(handResult.landmarks);
           
@@ -346,7 +339,7 @@
           }
         }
         
-        // 2. Process Timers
+        // Process Timers
         if (cameraState === 'ARM_COUNTDOWN') {
           if (Date.now() - armCountdownStart >= 3000) cameraState = 'ARMED';
         }
@@ -354,20 +347,24 @@
         if (cameraState === 'SNAP_COUNTDOWN') {
           if (Date.now() - snapCountdownStart >= 3000) {
             executeSnap();
-            cameraState = 'ARMED'; // Re-arm after snap
+            cameraState = 'ARMED'; 
+            nodStartTime = 0;
+            isPrimedForSnap = false;
           }
         }
         
-        // 3. Process Face (Only when armed and not already counting down to snap)
+        // Process Face
         if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
           if (cameraState === 'ARMED') {
             const didNod = detectNod(faceResult.faceLandmarks[0]);
             if (didNod) startSnapCountdown();
           } else {
-            pitchHistory = []; 
+            nodStartTime = 0;
+            isPrimedForSnap = false;
           }
         } else {
-          pitchHistory = []; 
+          nodStartTime = 0;
+          isPrimedForSnap = false;
         }
         
         updateUI();
