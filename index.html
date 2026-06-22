@@ -95,10 +95,10 @@
     @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 20% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
 
     .top-hud { position: absolute; top: 36px; left: 36px; right: 36px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 25; pointer-events: none; gap: 12px; }
-    .glass-panel { pointer-events: auto; background: rgba(15, 15, 20, 0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 100px; padding: 10px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); }
+    .glass-panel { pointer-events: auto; background: rgba(15, 15, 20, 0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 100px; padding: 10px 18px; display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); white-space: nowrap; }
 
-    .brand { font-weight: 700; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; color: #ffffff; }
-    .brand svg { width: 20px; height: 20px; stroke: #ffffff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .brand { font-weight: 700; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; color: #ffffff; flex: 0 0 auto; }
+    .brand svg { width: 20px; height: 20px; stroke: #ffffff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
 
     .status-group { display: flex; align-items: center; gap: 10px; }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4b5563; transition: all 0.3s ease; }
@@ -107,14 +107,14 @@
     .status-dot.alert { background: var(--red); box-shadow: 0 0 12px rgba(239, 68, 68, 0.6); }
     .status-dot.standby { background: var(--grey); box-shadow: 0 0 12px rgba(156, 163, 175, 0.4); }
 
-    #gestureLabel { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #e5e7eb; font-variant-numeric: tabular-nums; }
+    #gestureLabel { font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #e5e7eb; font-variant-numeric: tabular-nums; min-width: 52px; text-align: center; white-space: nowrap; }
 
     /* ---- Telemetry panel (signature element) ---- */
     .telemetry {
       position: absolute; bottom: 150px; left: 36px; z-index: 24; pointer-events: none;
       background: rgba(10, 10, 14, 0.42); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 14px 16px;
-      width: 232px; font-family: var(--mono); box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      width: 206px; max-width: calc(50vw - 44px); font-family: var(--mono); box-shadow: 0 8px 32px rgba(0,0,0,0.35);
     }
     .tel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .tel-title { font-size: 9px; font-weight: 700; letter-spacing: 0.22em; color: rgba(255,255,255,0.45); }
@@ -124,32 +124,33 @@
 
     .tel-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
     .tel-row:last-child { margin-bottom: 0; }
-    .tel-key { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: rgba(255,255,255,0.5); white-space: nowrap; }
-    .tel-val { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #fff; font-variant-numeric: tabular-nums; }
+    .tel-key { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: rgba(255,255,255,0.5); white-space: nowrap; flex: 0 0 auto; }
+    .tel-val { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 0 auto; }
     .tel-val.off { color: rgba(255,255,255,0.3); }
     .tel-val.on { color: var(--green); }
 
-    .tel-bar { flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; position: relative; }
+    .tel-bar { flex: 1 1 auto; min-width: 24px; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; position: relative; }
     .tel-bar > i { position: absolute; inset: 0; width: 0%; border-radius: 4px; transition: width 0.08s linear, background 0.2s; }
+    .tel-bar + .tel-val { min-width: 36px; text-align: right; }
 
     /* ---- Voice / audio meter (right side) ---- */
     .voice-hud {
       position: absolute; bottom: 150px; right: 36px; z-index: 24; pointer-events: none;
       background: rgba(10, 10, 14, 0.42); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 14px 16px;
-      width: 168px; font-family: var(--mono); box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      width: 150px; max-width: calc(50vw - 44px); font-family: var(--mono); box-shadow: 0 8px 32px rgba(0,0,0,0.35);
     }
     .voice-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .voice-top .vt-label { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: rgba(255,255,255,0.45); }
-    .mic-icon { display: flex; align-items: center; justify-content: center; opacity: 0.3; transition: all 0.3s; }
+    .mic-icon { display: flex; align-items: center; justify-content: center; opacity: 0.3; transition: all 0.3s; flex: 0 0 auto; }
     .mic-icon svg { width: 14px; height: 14px; stroke: #ffffff; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
     .mic-icon.listening { opacity: 1; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8)); }
 
-    .spectrum { display: flex; align-items: flex-end; gap: 3px; height: 38px; margin-bottom: 10px; }
-    .spectrum .sbar { flex: 1; min-width: 0; height: 6%; border-radius: 2px; background: var(--grey); transition: height 0.06s linear, background 0.2s; }
+    .spectrum { display: flex; align-items: flex-end; gap: 3px; height: 36px; margin-bottom: 10px; }
+    .spectrum .sbar { flex: 1 1 0; min-width: 0; height: 6%; border-radius: 2px; background: var(--grey); transition: height 0.06s linear, background 0.2s; }
     .spectrum.hot .sbar { background: var(--green); }
 
-    .voice-cmd { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; color: rgba(255,255,255,0.55); min-height: 14px; }
+    .voice-cmd { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: rgba(255,255,255,0.55); min-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .voice-cmd b { color: var(--green); font-weight: 700; }
 
     /* ---- Settings ---- */
@@ -215,15 +216,25 @@
 
     @media (max-width: 600px) {
       .viewfinder { inset: 16px; }
-      .top-hud { top: 24px; left: 16px; right: 16px; }
-      .brand { font-size: 12px; padding: 8px 14px; }
-      .telemetry { bottom: 120px; left: 16px; width: 196px; padding: 12px; }
-      .voice-hud { bottom: 120px; right: 16px; width: 132px; padding: 12px; }
-      .settings-panel { top: 78px; right: 16px; width: 200px; }
+      .top-hud { top: 20px; left: 14px; right: 14px; gap: 8px; }
+      .glass-panel { padding: 9px 14px; gap: 8px; }
+      .brand { font-size: 12px; }
+      .brand svg { width: 18px; height: 18px; }
+      #gestureLabel { font-size: 12px; min-width: 46px; }
+      .icon-btn { padding: 9px; }
+      .telemetry { bottom: 124px; left: 14px; width: 160px; padding: 11px 12px; }
+      .voice-hud { bottom: 124px; right: 14px; width: 120px; padding: 11px 12px; }
+      .settings-panel { top: 74px; right: 14px; width: 204px; }
       .reticle { width: 130px; height: 130px; }
-      .gallery-dock { bottom: 24px; padding: 10px; border-radius: 20px; max-width: calc(100vw - 32px); }
-      .snapshot-item { width: 64px; height: 64px; }
+      .gallery-dock { bottom: 22px; padding: 9px; gap: 12px; border-radius: 20px; max-width: calc(100vw - 28px); }
+      .snapshot-item { width: 60px; height: 60px; }
       #centerCountdown { font-size: 130px; }
+    }
+
+    @media (max-width: 360px) {
+      .brand { font-size: 0; }
+      .telemetry { width: 148px; }
+      .voice-hud { width: 110px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -297,21 +308,21 @@
         <!-- Sensor telemetry -->
         <div class="telemetry" id="telemetry">
           <div class="tel-head">
-            <span class="tel-title">SENSOR TELEMETRY</span>
+            <span class="tel-title">SENSORS</span>
             <span class="tel-live">LIVE</span>
           </div>
           <div class="tel-row">
             <span class="tel-key">FACE</span>
-            <span class="tel-val off" id="telFace">NO LOCK</span>
+            <span class="tel-val off" id="telFace">--</span>
           </div>
           <div class="tel-row">
             <span class="tel-key">HAND</span>
-            <span class="tel-val off" id="telHand">NO LOCK</span>
+            <span class="tel-val off" id="telHand">--</span>
           </div>
           <div class="tel-row">
-            <span class="tel-key">NOD SIG</span>
+            <span class="tel-key">NOD</span>
             <div class="tel-bar"><i id="telNodBar"></i></div>
-            <span class="tel-val" id="telNodVal" style="min-width:34px;text-align:right">00%</span>
+            <span class="tel-val" id="telNodVal">00%</span>
           </div>
           <div class="tel-row">
             <span class="tel-key">ZOOM</span>
@@ -326,7 +337,7 @@
         <!-- Voice / audio meter -->
         <div class="voice-hud" id="voiceHud">
           <div class="voice-top">
-            <span class="vt-label">VOICE I/O</span>
+            <span class="vt-label">VOICE</span>
             <span class="mic-icon" id="micIcon">
               <svg viewBox="0 0 24 24">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
@@ -336,7 +347,7 @@
             </span>
           </div>
           <div class="spectrum" id="spectrum"></div>
-          <div class="voice-cmd" id="voiceCmd">AWAITING INPUT</div>
+          <div class="voice-cmd" id="voiceCmd">READY</div>
         </div>
 
       </div>
@@ -386,54 +397,46 @@
     let fpsValue = 0;
     let lastFrameStamp = 0;
 
-    // ---------- 1. ADAPTIVE NOD DETECTION ----------
-    // Pitch proxy = (nose->chin) / (forehead->nose). Drops when head tilts down.
-    // Self-calibrating baseline removes per-face / per-distance bias, and a
-    // velocity-style dip->recover state machine fires fast on small nods while
-    // ignoring a sustained "looking down" pose.
+    // ---------- 1. NOD DETECTION (original logic, tuned faster + more sensitive) ----------
+    // ratio = (nose->chin) / (forehead->nose). Dips when the head tilts down,
+    // recovers as it comes back up. Dip-then-recover = a nod.
     function getDistance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
-    let ratioBaseline = null;
-    let nodState = 'READY';      // READY -> DIPPED -> (recover) = nod
-    let nodDipTime = 0;
+    let nodStartTime = 0;
+    let isPrimedForSnap = false;
 
-    const NOD_TRIGGER = 0.055;   // ~5.5% drop below neutral starts a nod
-    const NOD_RECOVER = 0.020;   // returning to within 2% completes it
-    const NOD_HOLD_MAX = 600;    // ms; longer than this = just looking down
+    const NOD_DIP = 0.94;     // higher than original 0.90 -> primes on slighter nods
+    const NOD_HOLD = 0;       // ms held in the dip before priming (instant)
+    const NOD_SNAP = 0.96;    // recover above this to fire (was 0.95)
+    const NOD_RESET = 1.10;   // looking too far up cancels the prime
 
     function detectNod(landmarks) {
       if (!landmarks || landmarks.length === 0) { nodSignal = 0; return false; }
 
+      const now = Date.now();
       const upper = getDistance(landmarks[10], landmarks[1]);   // forehead -> nose
       const lower = getDistance(landmarks[1], landmarks[152]);  // nose -> chin
       if (upper === 0) { nodSignal = 0; return false; }
       const ratio = lower / upper;
 
-      if (ratioBaseline === null) ratioBaseline = ratio;
-      const drop = (ratioBaseline - ratio) / ratioBaseline; // >0 means head tilted down
+      // HUD signal: how deep into the dip we are (0..1)
+      nodSignal = Math.max(0, Math.min(1, (1 - ratio) / (1 - NOD_DIP)));
 
-      // surface signal strength to the HUD
-      nodSignal = Math.max(0, Math.min(1, drop / NOD_TRIGGER));
-
-      const now = performance.now();
-
-      if (nodState === 'READY') {
-        // drift baseline toward neutral only while head is roughly level
-        if (Math.abs(drop) < 0.03) ratioBaseline = ratioBaseline * 0.9 + ratio * 0.1;
-        if (drop > NOD_TRIGGER) { nodState = 'DIPPED'; nodDipTime = now; }
-      } else { // DIPPED
-        if (now - nodDipTime > NOD_HOLD_MAX) {
-          // held down too long -> treat as new neutral, not a nod
-          nodState = 'READY';
-          ratioBaseline = ratio;
-          return false;
+      if (ratio < NOD_DIP) {
+        if (nodStartTime === 0) nodStartTime = now;
+        if (now - nodStartTime >= NOD_HOLD) isPrimedForSnap = true;
+      } else {
+        nodStartTime = 0;
+        if (isPrimedForSnap && ratio > NOD_SNAP) {
+          isPrimedForSnap = false;
+          return true; // snap!
         }
-        if (drop < NOD_RECOVER) { nodState = 'READY'; return true; } // snap up = nod
+        if (ratio > NOD_RESET) isPrimedForSnap = false;
       }
       return false;
     }
 
-    function resetNod() { nodState = 'READY'; nodSignal = 0; }
+    function resetNod() { nodStartTime = 0; isPrimedForSnap = false; nodSignal = 0; }
 
     // ---------- 2. GESTURES & ZOOM ----------
     function getFingersUpCount(landmarks) {
@@ -508,10 +511,10 @@
       centerCountdown.style.display = 'none';
 
       if (isShutterCooldown) {
-        label = 'CAPTURED'; colorClass = 'alert'; cornerColor = 'var(--red)';
+        label = 'SHOT'; colorClass = 'alert'; cornerColor = 'var(--red)';
       } else if (cameraState === 'SNAP_COUNTDOWN') {
         const left = Math.ceil(3 - (Date.now() - snapCountdownStart) / 1000);
-        label = `SNAPPING IN ${left}...`; colorClass = 'alert'; cornerColor = 'var(--red)';
+        label = 'SHOOT'; colorClass = 'alert'; cornerColor = 'var(--red)';
 
         centerCountdown.style.display = 'flex';
         centerCountdown.textContent = left;
@@ -523,11 +526,11 @@
         }
       } else if (cameraState === 'ARM_COUNTDOWN') {
         const left = Math.ceil(3 - (Date.now() - armCountdownStart) / 1000);
-        label = `ARMING IN ${left}...`; colorClass = 'warning'; cornerColor = 'var(--amber)';
+        label = `ARM ${left}`; colorClass = 'warning'; cornerColor = 'var(--amber)';
       } else if (cameraState === 'ARMED') {
-        label = 'NOD TO COUNTDOWN'; colorClass = 'active'; cornerColor = 'var(--green)';
+        label = 'NOD'; colorClass = 'active'; cornerColor = 'var(--green)';
       } else {
-        label = 'STANDBY (2 FINGERS TO ARM)'; colorClass = 'standby'; cornerColor = 'rgba(255, 255, 255, 0.1)';
+        label = 'STANDBY'; colorClass = 'standby'; cornerColor = 'rgba(255, 255, 255, 0.1)';
       }
 
       gestureLabel.textContent = label;
@@ -539,9 +542,9 @@
     function renderTelemetry() {
       reticle.classList.toggle('locked', faceTracked);
 
-      telFace.textContent = faceTracked ? 'LOCK' : 'NO LOCK';
+      telFace.textContent = faceTracked ? 'OK' : '--';
       telFace.className = 'tel-val ' + (faceTracked ? 'on' : 'off');
-      telHand.textContent = handTracked ? 'LOCK' : 'NO LOCK';
+      telHand.textContent = handTracked ? 'OK' : '--';
       telHand.className = 'tel-val ' + (handTracked ? 'on' : 'off');
 
       const pct = Math.round(nodSignal * 100);
@@ -631,7 +634,7 @@
           lastVoiceFire = now;
           voiceCmd.innerHTML = `<b>${cmd.label}</b>`;
           clearTimeout(handleVoice._t);
-          handleVoice._t = setTimeout(() => { voiceCmd.textContent = 'AWAITING INPUT'; }, 1600);
+          handleVoice._t = setTimeout(() => { voiceCmd.textContent = 'READY'; }, 1600);
           return true;
         }
       }
@@ -640,7 +643,7 @@
 
     function initVoiceCommands() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) { voiceCmd.textContent = 'VOICE UNAVAILABLE'; return; }
+      if (!SpeechRecognition) { voiceCmd.textContent = 'NO MIC'; return; }
 
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
