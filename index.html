@@ -111,7 +111,7 @@
 
     /* ---- Telemetry panel (signature element) ---- */
     .telemetry {
-      position: absolute; top: 110px; left: 36px; z-index: 24; pointer-events: none;
+      position: absolute; bottom: 150px; left: 36px; z-index: 24; pointer-events: none;
       background: rgba(10, 10, 14, 0.42); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 14px 16px;
       width: 232px; font-family: var(--mono); box-shadow: 0 8px 32px rgba(0,0,0,0.35);
@@ -134,7 +134,7 @@
 
     /* ---- Voice / audio meter (right side) ---- */
     .voice-hud {
-      position: absolute; top: 110px; right: 36px; z-index: 24; pointer-events: none;
+      position: absolute; bottom: 150px; right: 36px; z-index: 24; pointer-events: none;
       background: rgba(10, 10, 14, 0.42); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 14px 16px;
       width: 168px; font-family: var(--mono); box-shadow: 0 8px 32px rgba(0,0,0,0.35);
@@ -151,6 +151,42 @@
 
     .voice-cmd { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; color: rgba(255,255,255,0.55); min-height: 14px; }
     .voice-cmd b { color: var(--green); font-weight: 700; }
+
+    /* ---- Settings ---- */
+    .hud-right { display: flex; align-items: center; gap: 12px; pointer-events: none; }
+    .icon-btn { padding: 11px; border-radius: 50%; cursor: pointer; color: #fff; }
+    .icon-btn svg { width: 18px; height: 18px; display: block; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.4s cubic-bezier(0.2,0,0,1); }
+    .icon-btn:active { transform: scale(0.92); }
+    .icon-btn.open svg { transform: rotate(90deg); }
+
+    .settings-panel {
+      position: absolute; top: 92px; right: 36px; z-index: 35; width: 224px;
+      background: rgba(10, 10, 14, 0.55); backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 18px; padding: 16px; font-family: var(--mono);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      opacity: 0; visibility: hidden; transform: translateY(-8px); transition: opacity 0.22s, transform 0.22s, visibility 0.22s; pointer-events: none;
+    }
+    .settings-panel.open { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; }
+    .settings-title { font-size: 9px; letter-spacing: 0.22em; color: rgba(255,255,255,0.45); font-weight: 700; margin-bottom: 14px; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; cursor: pointer; }
+    .toggle-row:last-child { margin-bottom: 0; }
+    .toggle-row .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: #e5e7eb; }
+    .switch { position: relative; width: 40px; height: 22px; border-radius: 100px; background: rgba(255,255,255,0.15); transition: background 0.2s; flex: 0 0 auto; }
+    .switch.on { background: var(--green); box-shadow: 0 0 12px rgba(16,185,129,0.45); }
+    .switch i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s cubic-bezier(0.2,0,0,1); }
+    .switch.on i { transform: translateX(18px); }
+
+    /* HUD off: hide overlays but keep top bar (so settings stays reachable) */
+    body.hud-off .telemetry,
+    body.hud-off .voice-hud,
+    body.hud-off .reticle,
+    body.hud-off .viewfinder { opacity: 0 !important; visibility: hidden; pointer-events: none; transition: opacity 0.3s; }
+
+    /* Effects off: kill ambient motion + scan grid */
+    body.fx-off .scan-grid { display: none; }
+    body.fx-off .reticle .r-ring { animation: none; opacity: 0; }
+    body.fx-off .tel-live::before { animation: none; }
+    body.fx-off .spectrum.hot .sbar { background: var(--grey); }
 
     .gallery-dock {
       position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 72px); z-index: 25;
@@ -181,8 +217,9 @@
       .viewfinder { inset: 16px; }
       .top-hud { top: 24px; left: 16px; right: 16px; }
       .brand { font-size: 12px; padding: 8px 14px; }
-      .telemetry { top: 92px; left: 16px; width: 196px; padding: 12px; }
-      .voice-hud { top: 92px; right: 16px; width: 132px; padding: 12px; }
+      .telemetry { bottom: 120px; left: 16px; width: 196px; padding: 12px; }
+      .voice-hud { bottom: 120px; right: 16px; width: 132px; padding: 12px; }
+      .settings-panel { top: 78px; right: 16px; width: 200px; }
       .reticle { width: 130px; height: 130px; }
       .gallery-dock { bottom: 24px; padding: 10px; border-radius: 20px; max-width: calc(100vw - 32px); }
       .snapshot-item { width: 64px; height: 64px; }
@@ -233,9 +270,27 @@
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="4"></line><line x1="12" y1="20" x2="12" y2="22"></line><line x1="2" y1="12" x2="4" y2="12"></line><line x1="20" y1="12" x2="22" y2="12"></line></svg>
             APERTURE
           </div>
-          <div class="glass-panel status-group">
-            <span class="status-dot" id="statusDot"></span>
-            <span id="gestureLabel">Booting...</span>
+          <div class="hud-right">
+            <div class="glass-panel status-group">
+              <span class="status-dot" id="statusDot"></span>
+              <span id="gestureLabel">Booting...</span>
+            </div>
+            <button class="glass-panel icon-btn" id="settingsBtn" aria-label="Settings">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="settings-panel" id="settingsPanel">
+          <div class="settings-title">DISPLAY</div>
+          <div class="toggle-row" data-toggle="hud">
+            <span class="lbl">HUD Overlay</span>
+            <span class="switch on"><i></i></span>
+          </div>
+          <div class="toggle-row" data-toggle="fx">
+            <span class="lbl">Visual Effects</span>
+            <span class="switch on"><i></i></span>
           </div>
         </div>
 
@@ -652,6 +707,35 @@
       }
       requestAnimationFrame(renderSpectrum);
     }
+
+    // ---------- SETTINGS ----------
+    (function initSettings() {
+      const btn = document.getElementById('settingsBtn');
+      const panel = document.getElementById('settingsPanel');
+
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        panel.classList.toggle('open');
+        btn.classList.toggle('open');
+      });
+
+      // close when tapping outside
+      document.addEventListener('click', (e) => {
+        if (!panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+          panel.classList.remove('open');
+          btn.classList.remove('open');
+        }
+      });
+
+      panel.querySelectorAll('.toggle-row').forEach((row) => {
+        row.addEventListener('click', () => {
+          const sw = row.querySelector('.switch');
+          const on = sw.classList.toggle('on');
+          if (row.dataset.toggle === 'hud') document.body.classList.toggle('hud-off', !on);
+          if (row.dataset.toggle === 'fx') document.body.classList.toggle('fx-off', !on);
+        });
+      });
+    })();
 
     // ---------- 8. BOOTUP ----------
     async function bootML() {
