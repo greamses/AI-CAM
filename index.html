@@ -325,7 +325,7 @@
           <div class="settings-title">AR &amp; CONTROL</div>
           <div class="toggle-row" data-key="glasses"><span class="lbl">Sunglasses</span><span class="switch"><i></i></span></div>
           <div class="toggle-row" data-key="cap"><span class="lbl">Cap</span><span class="switch"><i></i></span></div>
-          <div class="toggle-row" data-key="cursor"><span class="lbl">Hand Cursor</span><span class="switch"><i></i></span></div>
+          <div class="toggle-row" data-key="cursor"><span class="lbl">Hand Cursor</span><span class="switch on"><i></i></span></div>
         </div>
 
         <div id="filterToast">NONE</div>
@@ -425,7 +425,7 @@
     const SNAP_SECONDS = 5;   // photo countdown
 
     // Feature flags (driven by settings)
-    const FX = { telemetry: true, voice: true, reticle: true, viewfinder: true, effects: true, glasses: false, cap: false, cursor: false };
+    const FX = { telemetry: true, voice: true, reticle: true, viewfinder: true, effects: true, glasses: false, cap: false, cursor: true };
 
     // Colour filters cycled by swipe
     const FILTERS = [
@@ -459,73 +459,100 @@
     let lastFrameStamp = 0;
     let lastFace = null;   // cached face landmarks for AR + snapshot
 
-    // ---------- 1. PINCH + GESTURE DETECTION ----------
+    // ============================================================
+    //  GESTURE DETECTION  (all helpers take ONE hand's 21 landmarks)
+    //  Each gesture is mutually exclusive so they never fight:
+    //    POINT  (index only)         -> hand cursor
+    //    OPEN   (4 fingers extended)  -> swipe = change filter
+    //    TWO    (index+middle)        -> arm   (in STANDBY)
+    //    THREE  (index+middle+ring)   -> back to STANDBY
+    //    PINCH  (thumb meets index)   -> zoom (STANDBY) / snap (ARMED)
+    // ============================================================
     function getDistance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
-    // Pinch ratio = thumb-tip<->index-tip gap normalized by palm length
-    // (wrist <-> middle MCP). Distance-invariant: same value near or far.
-    const PINCH_ON = 0.60;    // ratio below this = pinched (more sensitive)
-    const PINCH_OFF = 0.82;   // ratio above this = released (hysteresis)
-    let wasPinched = false;
-
-    function getPinchRatio(landmarks) {
-      const lm = landmarks[0];
-      const gap = getDistance(lm[4], lm[8]);             // thumb tip -> index tip
-      const palm = getDistance(lm[0], lm[9]) || 0.0001;  // wrist -> middle MCP
-      return gap / palm;
+    // Rotation-invariant finger test: a finger is extended when its TIP is
+    // farther from the wrist than its PIP joint. Works at any hand angle,
+    // unlike comparing y-coordinates.
+    function fingersUp(h) {
+      const w = h[0];
+      const dW = (i) => getDistance(h[i], w);
+      // extended when the tip is farther from the wrist than its PIP joint.
+      // Plain '>' (no 1.05 margin) so shorter fingers like the pinky still count.
+      const ext = (tip, pip) => dW(tip) > dW(pip);
+      return { index: ext(8, 6), middle: ext(12, 10), ring: ext(16, 14), pinky: ext(20, 18) };
     }
 
-    function detectPinch(landmarks) {
-      const ratio = getPinchRatio(landmarks);
-      pinchSignal = Math.max(0, Math.min(1, (PINCH_OFF - ratio) / (PINCH_OFF - PINCH_ON)));
-      let fired = false;
-      if (!wasPinched && ratio < PINCH_ON) { wasPinched = true; fired = true; }
-      else if (wasPinched && ratio > PINCH_OFF) { wasPinched = false; }
-      return fired;
-    }
-    function resetPinch() { wasPinched = false; pinchSignal = 0; }
-
-    // Pose classification (one of POINT / TWO / THREE / OPEN / OTHER)
-    function getPose(landmarks) {
-      const lm = landmarks[0];
-      const up = (tip, pip) => lm[tip].y < lm[pip].y - 0.01; // small margin = snappier
-      const i = up(8, 6), m = up(12, 10), r = up(16, 14), p = up(20, 18);
-      if (i && !m && !r && !p) return 'POINT';
-      if (i && m && !r && !p) return 'TWO';
-      if (i && m && r && !p) return 'THREE';
-      if (i && m && r && p) return 'OPEN';
+    function getPose(h) {
+      const f = fingersUp(h);
+      const n = (f.index ? 1 : 0) + (f.middle ? 1 : 0) + (f.ring ? 1 : 0) + (f.pinky ? 1 : 0);
+      if (f.index && !f.middle && !f.ring && !f.pinky) return 'POINT';
+      if (f.index && f.middle && !f.ring && !f.pinky) return 'TWO';
+      if (f.index && f.middle && f.ring && !f.pinky) return 'THREE';
+      if (n >= 4) return 'OPEN';
       return 'OTHER';
     }
 
-    // STANDBY-only zoom from thumb/index spread (distance-invariant).
-    function handlePinchZoom(landmarks) {
-      const ratio = getPinchRatio(landmarks);
+    // Pinch ratio = thumb-tip <-> index-tip gap / palm length. Distance-invariant.
+    function getPinchRatio(h) {
+      const gap = getDistance(h[4], h[8]);
+      const palm = getDistance(h[0], h[9]) || 0.0001;
+      return gap / palm;
+    }
+
+    // SNAP = a genuine OPEN-then-CLOSE pinch. Must see the hand open first,
+    // then close fully, then it fires exactly once. Tight thresholds so a
+    // relaxed hand never triggers it.
+    const PINCH_CLOSE = 0.45;  // below = fingers closed (true pinch)
+    const PINCH_OPEN  = 0.70;  // above = fingers open (re-arms the trigger)
+    let pinchReady = false;    // became open at least once
+    let pinchHeld = false;     // currently closed
+
+    function detectSnapPinch(h) {
+      const ratio = getPinchRatio(h);
+      pinchSignal = Math.max(0, Math.min(1, (PINCH_OPEN - ratio) / (PINCH_OPEN - PINCH_CLOSE)));
+      let fired = false;
+      if (ratio > PINCH_OPEN) { pinchReady = true; pinchHeld = false; }
+      else if (ratio < PINCH_CLOSE && !pinchHeld) {
+        pinchHeld = true;
+        if (pinchReady) { fired = true; pinchReady = false; }
+      }
+      return fired;
+    }
+    function resetPinch() { pinchReady = false; pinchHeld = false; pinchSignal = 0; }
+
+    // STANDBY zoom from thumb/index spread.
+    function handlePinchZoom(h) {
+      const ratio = getPinchRatio(h);
       targetZoom = Math.min(3.0, Math.max(1.0, 1.0 + (ratio - 0.4) * 2.2));
     }
 
-    // ---------- SWIPE -> colour filters (open palm, fast horizontal move) ----------
-    let swipeRef = null;       // { x, t }
+    // ---------- SWIPE -> colour filters (open palm moved horizontally) ----------
+    // Keeps a short trail of palm-x while the palm is open and looks for a fast
+    // net horizontal move. Tolerant of one-frame pose dropouts.
+    let swipeTrail = [];
     let lastSwipe = 0;
-    const SWIPE_DIST = 0.16;   // fraction of frame width
-    const SWIPE_TIME = 450;    // ms window
-    function handleSwipe(landmarks) {
-      const lm = landmarks[0];
-      const x = (lm[0].x + lm[9].x) / 2; // palm centre x (source space)
+    const SWIPE_DIST = 0.09;   // net horizontal move (fraction of frame) - easier
+    const SWIPE_TIME = 650;    // ms window
+    function handleSwipe(h) {
       const now = Date.now();
-      if (!swipeRef || now - swipeRef.t > SWIPE_TIME) { swipeRef = { x, t: now }; return; }
-      const dx = x - swipeRef.x;
-      if (Math.abs(dx) > SWIPE_DIST && now - lastSwipe > 700) {
+      const x = (h[0].x + h[9].x) / 2;            // palm centre x
+      const y = (h[0].y + h[9].y) / 2;
+      swipeTrail.push({ x, y, t: now });
+      while (swipeTrail.length && now - swipeTrail[0].t > SWIPE_TIME) swipeTrail.shift();
+      if (swipeTrail.length < 3 || now - lastSwipe < 800) return;
+
+      const first = swipeTrail[0], last = swipeTrail[swipeTrail.length - 1];
+      const dx = last.x - first.x, dy = last.y - first.y;
+      if (Math.abs(dx) > SWIPE_DIST && Math.abs(dx) > Math.abs(dy) * 1.2) {
         lastSwipe = now;
-        // source x is mirrored on screen: source-right (dx>0) shows as screen-left
+        swipeTrail = [];
+        // moving hand toward the RIGHT of the screen = next filter
         cycleFilter(dx > 0 ? -1 : 1);
-        swipeRef = { x, t: now };
       }
     }
-    function resetSwipe() { swipeRef = null; }
+    function resetSwipe() { swipeTrail = []; }
 
-    // ---------- HAND CURSOR (point to move, push to click) ----------
-    // Map a source-normalized point to viewport coords matching the displayed
-    // (cover-cropped, mirrored, zoomed) video so the cursor sits on the fingertip.
+    // ---------- HAND CURSOR (point to move; PUSH or THUMB-TAP to click) ----------
     function toScreen(nx, ny) {
       const rect = stage.getBoundingClientRect();
       const W = rect.width, H = rect.height;
@@ -533,46 +560,53 @@
       const s = Math.max(W / vw, H / vh);
       const dw = vw * s, dh = vh * s;
       const ox = (W - dw) / 2, oy = (H - dh) / 2;
-      let x = ox + nx * dw;
-      let y = oy + ny * dh;
-      x = W - x;                                   // mirror
-      x = W / 2 + (x - W / 2) * currentZoom;        // zoom about centre
+      let x = ox + nx * dw, y = oy + ny * dh;
+      x = W - x;                                    // mirror
+      x = W / 2 + (x - W / 2) * currentZoom;         // zoom about centre
       y = H / 2 + (y - H / 2) * currentZoom;
       return { x: rect.left + x, y: rect.top + y };
     }
 
     let cursorActive = false;
     let pushBaseline = null, wasClicking = false;
-    const PUSH_TRIGGER = 0.045;   // forward depth delta to register a click
-    const PUSH_RELEASE = 0.020;
+    const PUSH_TRIGGER = 0.05;    // forward-depth jab
+    const PUSH_RELEASE = 0.02;
+    const TAP_CLOSE = 0.5;        // thumb-tap onto index = click
+    const TAP_OPEN  = 0.7;
 
-    function showCursor(landmarks) {
-      const lm = landmarks[0];
-      const tip = lm[8];
+    function showCursor(h) {
+      const tip = h[8];
       const pos = toScreen(tip.x, tip.y);
       handCursor.style.left = pos.x + 'px';
       handCursor.style.top = pos.y + 'px';
       handCursor.classList.add('show');
       cursorActive = true;
 
-      // Push detection via relative depth (index tip vs wrist). Forward = more negative z.
-      const relZ = lm[8].z - lm[0].z;
+      // Click method 1: push toward camera (relative depth of fingertip vs wrist)
+      const relZ = h[8].z - h[0].z;
       if (pushBaseline === null) pushBaseline = relZ;
-      const push = pushBaseline - relZ;            // >0 when pushing toward camera
-      const fill = handCursor.querySelector('.hc-fill');
-      const pp = Math.max(0, Math.min(1, push / PUSH_TRIGGER));
-      fill.style.width = fill.style.height = (pp * 40) + 'px';
+      const push = pushBaseline - relZ;
+      // Click method 2: tap thumb onto index
+      const ratio = getPinchRatio(h);
 
-      if (!wasClicking && push > PUSH_TRIGGER) {
+      const pushProg = Math.max(0, Math.min(1, push / PUSH_TRIGGER));
+      const tapProg = Math.max(0, Math.min(1, (TAP_OPEN - ratio) / (TAP_OPEN - TAP_CLOSE)));
+      const prog = Math.max(pushProg, tapProg);
+      const fill = handCursor.querySelector('.hc-fill');
+      fill.style.width = fill.style.height = (prog * 40) + 'px';
+
+      const clickDown = push > PUSH_TRIGGER || ratio < TAP_CLOSE;
+      const clickUp = push < PUSH_RELEASE && ratio > TAP_OPEN;
+
+      if (!wasClicking && clickDown) {
         wasClicking = true;
         handCursor.classList.add('click');
         clickAt(pos.x, pos.y);
-      } else if (wasClicking && push < PUSH_RELEASE) {
+      } else if (wasClicking && clickUp) {
         wasClicking = false;
         handCursor.classList.remove('click');
       }
-      // drift baseline slowly while not pushing so it self-calibrates
-      if (push < PUSH_RELEASE) pushBaseline = pushBaseline * 0.9 + relZ * 0.1;
+      if (push < PUSH_RELEASE) pushBaseline = pushBaseline * 0.9 + relZ * 0.1; // self-calibrate
     }
 
     function hideCursor() {
@@ -762,22 +796,23 @@
         let pointing = false;
 
         if (handTracked) {
-          const pose = getPose(handResult.landmarks);
+          const h = handResult.landmarks[0];
+          const pose = getPose(h);
 
-          // Hand cursor takes priority while pointing
+          // 1) POINT -> hand cursor (highest priority; blocks other actions)
           if (FX.cursor && pose === 'POINT') {
             pointing = true;
-            showCursor(handResult.landmarks);
+            showCursor(h);
           } else {
             hideCursor();
           }
 
-          // Swipe filters with an open palm
-          if (pose === 'OPEN') handleSwipe(handResult.landmarks);
+          // 2) OPEN palm -> swipe filters
+          if (!pointing && pose === 'OPEN') handleSwipe(h);
           else resetSwipe();
 
           if (!pointing) {
-            // Mode switching
+            // 3) Mode switches
             if (pose === 'TWO' && cameraState === 'STANDBY') {
               cameraState = 'ARM_COUNTDOWN';
               armCountdownStart = Date.now();
@@ -786,11 +821,12 @@
               resetPinch();
             }
 
+            // 4) Pinch: zoom in STANDBY, open-close snap in ARMED
             if (cameraState === 'STANDBY') {
-              if (pose === 'OTHER') handlePinchZoom(handResult.landmarks); // zoom only here
+              if (pose === 'OTHER') handlePinchZoom(h);
               pinchSignal = 0;
             } else if (cameraState === 'ARMED') {
-              if (detectPinch(handResult.landmarks)) startSnapCountdown();  // pinch = shoot
+              if (detectSnapPinch(h)) startSnapCountdown();
             } else {
               pinchSignal = 0;
             }
