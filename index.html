@@ -37,8 +37,8 @@
     .camera-stage { flex: 1; position: relative; background: #000000; overflow: hidden; }
     .camera-viewport { width: 100%; height: 100%; position: relative; display: flex; align-items: center; justify-content: center; }
 
-    #webcam { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-    #overlayCanvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
+    #webcam { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.35s ease; }
+    #overlayCanvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; transform: scaleX(-1); z-index: 9; }
 
     /* Subtle scan grid */
     .scan-grid {
@@ -161,33 +161,54 @@
     .icon-btn.open svg { transform: rotate(90deg); }
 
     .settings-panel {
-      position: absolute; top: 92px; right: 36px; z-index: 35; width: 224px;
-      background: rgba(10, 10, 14, 0.55); backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+      position: absolute; top: 92px; right: 36px; z-index: 35; width: 230px; max-height: calc(100dvh - 130px); overflow-y: auto;
+      background: rgba(10, 10, 14, 0.6); backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
       border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 18px; padding: 16px; font-family: var(--mono);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); scrollbar-width: none;
       opacity: 0; visibility: hidden; transform: translateY(-8px); transition: opacity 0.22s, transform 0.22s, visibility 0.22s; pointer-events: none;
     }
+    .settings-panel::-webkit-scrollbar { display: none; }
     .settings-panel.open { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; }
-    .settings-title { font-size: 9px; letter-spacing: 0.22em; color: rgba(255,255,255,0.45); font-weight: 700; margin-bottom: 14px; }
-    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; cursor: pointer; }
+    .settings-title { font-size: 9px; letter-spacing: 0.22em; color: rgba(255,255,255,0.45); font-weight: 700; margin-bottom: 12px; }
+    .settings-title:not(:first-child) { margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; cursor: pointer; }
     .toggle-row:last-child { margin-bottom: 0; }
     .toggle-row .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: #e5e7eb; }
-    .switch { position: relative; width: 40px; height: 22px; border-radius: 100px; background: rgba(255,255,255,0.15); transition: background 0.2s; flex: 0 0 auto; }
+    .switch { position: relative; width: 38px; height: 21px; border-radius: 100px; background: rgba(255,255,255,0.15); transition: background 0.2s; flex: 0 0 auto; }
     .switch.on { background: var(--green); box-shadow: 0 0 12px rgba(16,185,129,0.45); }
-    .switch i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s cubic-bezier(0.2,0,0,1); }
-    .switch.on i { transform: translateX(18px); }
+    .switch i { position: absolute; top: 3px; left: 3px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: transform 0.2s cubic-bezier(0.2,0,0,1); }
+    .switch.on i { transform: translateX(17px); }
 
-    /* HUD off: hide overlays but keep top bar (so settings stays reachable) */
-    body.hud-off .telemetry,
-    body.hud-off .voice-hud,
-    body.hud-off .reticle,
-    body.hud-off .viewfinder { opacity: 0 !important; visibility: hidden; pointer-events: none; transition: opacity 0.3s; }
+    /* Individual HUD off switches */
+    body.off-telemetry .telemetry,
+    body.off-voice .voice-hud,
+    body.off-reticle .reticle,
+    body.off-viewfinder .viewfinder { display: none; }
+    body.off-effects .scan-grid { display: none; }
+    body.off-effects .reticle .r-ring { animation: none; opacity: 0; }
+    body.off-effects .tel-live::before { animation: none; }
+    body.off-effects .spectrum.hot .sbar { background: var(--grey); }
 
-    /* Effects off: kill ambient motion + scan grid */
-    body.fx-off .scan-grid { display: none; }
-    body.fx-off .reticle .r-ring { animation: none; opacity: 0; }
-    body.fx-off .tel-live::before { animation: none; }
-    body.fx-off .spectrum.hot .sbar { background: var(--grey); }
+    /* Hand cursor */
+    #handCursor {
+      position: fixed; top: 0; left: 0; width: 54px; height: 54px; z-index: 60; pointer-events: none;
+      transform: translate(-50%, -50%); display: none; will-change: left, top;
+    }
+    #handCursor.show { display: block; }
+    #handCursor .hc-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,0.85); box-shadow: 0 0 14px rgba(0,0,0,0.5); transition: transform 0.08s linear; }
+    #handCursor .hc-fill { position: absolute; inset: 50%; border-radius: 50%; background: var(--green); transform: translate(-50%, -50%); width: 0; height: 0; transition: width 0.06s linear, height 0.06s linear; }
+    #handCursor .hc-dot { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; border-radius: 50%; background: #fff; transform: translate(-50%, -50%); }
+    #handCursor.click .hc-ring { transform: scale(0.7); border-color: var(--green); }
+
+    /* Filter name toast */
+    #filterToast {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); z-index: 31;
+      font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase;
+      color: #fff; padding: 12px 26px; border-radius: 100px; background: rgba(10,10,14,0.5); backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px rgba(0,0,0,0.4); pointer-events: none;
+      opacity: 0; transition: opacity 0.25s, transform 0.25s;
+    }
+    #filterToast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
     .gallery-dock {
       position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 72px); z-index: 25;
@@ -295,15 +316,20 @@
         <!-- Settings -->
         <div class="settings-panel" id="settingsPanel">
           <div class="settings-title">DISPLAY</div>
-          <div class="toggle-row" data-toggle="hud">
-            <span class="lbl">HUD Overlay</span>
-            <span class="switch on"><i></i></span>
-          </div>
-          <div class="toggle-row" data-toggle="fx">
-            <span class="lbl">Visual Effects</span>
-            <span class="switch on"><i></i></span>
-          </div>
+          <div class="toggle-row" data-key="telemetry"><span class="lbl">Telemetry</span><span class="switch on"><i></i></span></div>
+          <div class="toggle-row" data-key="voice"><span class="lbl">Voice Meter</span><span class="switch on"><i></i></span></div>
+          <div class="toggle-row" data-key="reticle"><span class="lbl">Reticle</span><span class="switch on"><i></i></span></div>
+          <div class="toggle-row" data-key="viewfinder"><span class="lbl">Viewfinder</span><span class="switch on"><i></i></span></div>
+          <div class="toggle-row" data-key="effects"><span class="lbl">Effects</span><span class="switch on"><i></i></span></div>
+
+          <div class="settings-title">AR &amp; CONTROL</div>
+          <div class="toggle-row" data-key="glasses"><span class="lbl">Sunglasses</span><span class="switch"><i></i></span></div>
+          <div class="toggle-row" data-key="cap"><span class="lbl">Cap</span><span class="switch"><i></i></span></div>
+          <div class="toggle-row" data-key="cursor"><span class="lbl">Hand Cursor</span><span class="switch"><i></i></span></div>
         </div>
+
+        <div id="filterToast">NONE</div>
+        <div id="handCursor"><div class="hc-ring"></div><div class="hc-fill"></div><div class="hc-dot"></div></div>
 
         <!-- Sensor telemetry -->
         <div class="telemetry" id="telemetry">
@@ -358,6 +384,11 @@
     import { FaceLandmarker, HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.19/vision_bundle.mjs";
 
     const video = document.getElementById('webcam');
+    const stage = document.querySelector('.camera-stage');
+    const overlay = document.getElementById('overlayCanvas');
+    const octx = overlay.getContext('2d');
+    const handCursor = document.getElementById('handCursor');
+    const filterToast = document.getElementById('filterToast');
     const gallery = document.getElementById('galleryContainer');
     const flash = document.getElementById('flash-overlay');
     const statusDot = document.getElementById('statusDot');
@@ -393,21 +424,48 @@
     const ARM_SECONDS = 3;    // hold-to-arm
     const SNAP_SECONDS = 5;   // photo countdown
 
+    // Feature flags (driven by settings)
+    const FX = { telemetry: true, voice: true, reticle: true, viewfinder: true, effects: true, glasses: false, cap: false, cursor: false };
+
+    // Colour filters cycled by swipe
+    const FILTERS = [
+      { name: 'NONE',  css: 'none' },
+      { name: 'MONO',  css: 'grayscale(1) contrast(1.05)' },
+      { name: 'NOIR',  css: 'grayscale(1) contrast(1.45) brightness(0.92)' },
+      { name: 'SEPIA', css: 'sepia(0.7) contrast(1.05) brightness(1.02)' },
+      { name: 'WARM',  css: 'saturate(1.35) sepia(0.18) brightness(1.04)' },
+      { name: 'COOL',  css: 'saturate(1.2) hue-rotate(15deg) brightness(1.02)' },
+      { name: 'VIVID', css: 'saturate(1.7) contrast(1.12)' },
+      { name: 'CYBER', css: 'invert(1) hue-rotate(180deg) saturate(1.3)' }
+    ];
+    let filterIndex = 0;
+    function applyFilter() {
+      video.style.filter = FILTERS[filterIndex].css;
+      filterToast.textContent = FILTERS[filterIndex].name;
+      filterToast.classList.add('show');
+      clearTimeout(applyFilter._t);
+      applyFilter._t = setTimeout(() => filterToast.classList.remove('show'), 1100);
+    }
+    function cycleFilter(dir) {
+      filterIndex = (filterIndex + dir + FILTERS.length) % FILTERS.length;
+      applyFilter();
+    }
+
     // Live telemetry signals
     let faceTracked = false;
     let handTracked = false;
     let pinchSignal = 0;   // 0..1 how closed the pinch is
     let fpsValue = 0;
     let lastFrameStamp = 0;
+    let lastFace = null;   // cached face landmarks for AR + snapshot
 
     // ---------- 1. PINCH + GESTURE DETECTION ----------
     function getDistance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
     // Pinch ratio = thumb-tip<->index-tip gap normalized by palm length
-    // (wrist <-> middle MCP). Because both scale with hand distance, the ratio
-    // stays constant whether the hand is near or far -> reliable from a distance.
-    const PINCH_ON = 0.55;    // ratio below this = pinched (generous for far hands)
-    const PINCH_OFF = 0.80;   // ratio above this = released (hysteresis)
+    // (wrist <-> middle MCP). Distance-invariant: same value near or far.
+    const PINCH_ON = 0.60;    // ratio below this = pinched (more sensitive)
+    const PINCH_OFF = 0.82;   // ratio above this = released (hysteresis)
     let wasPinched = false;
 
     function getPinchRatio(landmarks) {
@@ -417,39 +475,166 @@
       return gap / palm;
     }
 
-    // Returns true once on the pinch edge (open -> closed). Hysteresis prevents
-    // repeat fires while held; pinchSignal feeds the HUD bar.
     function detectPinch(landmarks) {
       const ratio = getPinchRatio(landmarks);
       pinchSignal = Math.max(0, Math.min(1, (PINCH_OFF - ratio) / (PINCH_OFF - PINCH_ON)));
-
       let fired = false;
       if (!wasPinched && ratio < PINCH_ON) { wasPinched = true; fired = true; }
       else if (wasPinched && ratio > PINCH_OFF) { wasPinched = false; }
       return fired;
     }
-
     function resetPinch() { wasPinched = false; pinchSignal = 0; }
 
-    function getFingersUpCount(landmarks) {
-      if (!landmarks || landmarks.length === 0) return 'NONE';
+    // Pose classification (one of POINT / TWO / THREE / OPEN / OTHER)
+    function getPose(landmarks) {
       const lm = landmarks[0];
-      const isUp = (tip, pip) => lm[tip].y < lm[pip].y;
-
-      const index = isUp(8, 6);
-      const middle = isUp(12, 10);
-      const ring = isUp(16, 14);
-      const pinky = isUp(20, 18);
-
-      if (index && middle && !ring && !pinky) return 'TWO';
-      if (index && middle && ring && !pinky) return 'THREE';
+      const up = (tip, pip) => lm[tip].y < lm[pip].y - 0.01; // small margin = snappier
+      const i = up(8, 6), m = up(12, 10), r = up(16, 14), p = up(20, 18);
+      if (i && !m && !r && !p) return 'POINT';
+      if (i && m && !r && !p) return 'TWO';
+      if (i && m && r && !p) return 'THREE';
+      if (i && m && r && p) return 'OPEN';
       return 'OTHER';
     }
 
-    // STANDBY-only zoom: spread between thumb and index drives zoom, distance-invariant.
+    // STANDBY-only zoom from thumb/index spread (distance-invariant).
     function handlePinchZoom(landmarks) {
       const ratio = getPinchRatio(landmarks);
       targetZoom = Math.min(3.0, Math.max(1.0, 1.0 + (ratio - 0.4) * 2.2));
+    }
+
+    // ---------- SWIPE -> colour filters (open palm, fast horizontal move) ----------
+    let swipeRef = null;       // { x, t }
+    let lastSwipe = 0;
+    const SWIPE_DIST = 0.16;   // fraction of frame width
+    const SWIPE_TIME = 450;    // ms window
+    function handleSwipe(landmarks) {
+      const lm = landmarks[0];
+      const x = (lm[0].x + lm[9].x) / 2; // palm centre x (source space)
+      const now = Date.now();
+      if (!swipeRef || now - swipeRef.t > SWIPE_TIME) { swipeRef = { x, t: now }; return; }
+      const dx = x - swipeRef.x;
+      if (Math.abs(dx) > SWIPE_DIST && now - lastSwipe > 700) {
+        lastSwipe = now;
+        // source x is mirrored on screen: source-right (dx>0) shows as screen-left
+        cycleFilter(dx > 0 ? -1 : 1);
+        swipeRef = { x, t: now };
+      }
+    }
+    function resetSwipe() { swipeRef = null; }
+
+    // ---------- HAND CURSOR (point to move, push to click) ----------
+    // Map a source-normalized point to viewport coords matching the displayed
+    // (cover-cropped, mirrored, zoomed) video so the cursor sits on the fingertip.
+    function toScreen(nx, ny) {
+      const rect = stage.getBoundingClientRect();
+      const W = rect.width, H = rect.height;
+      const vw = video.videoWidth || W, vh = video.videoHeight || H;
+      const s = Math.max(W / vw, H / vh);
+      const dw = vw * s, dh = vh * s;
+      const ox = (W - dw) / 2, oy = (H - dh) / 2;
+      let x = ox + nx * dw;
+      let y = oy + ny * dh;
+      x = W - x;                                   // mirror
+      x = W / 2 + (x - W / 2) * currentZoom;        // zoom about centre
+      y = H / 2 + (y - H / 2) * currentZoom;
+      return { x: rect.left + x, y: rect.top + y };
+    }
+
+    let cursorActive = false;
+    let pushBaseline = null, wasClicking = false;
+    const PUSH_TRIGGER = 0.045;   // forward depth delta to register a click
+    const PUSH_RELEASE = 0.020;
+
+    function showCursor(landmarks) {
+      const lm = landmarks[0];
+      const tip = lm[8];
+      const pos = toScreen(tip.x, tip.y);
+      handCursor.style.left = pos.x + 'px';
+      handCursor.style.top = pos.y + 'px';
+      handCursor.classList.add('show');
+      cursorActive = true;
+
+      // Push detection via relative depth (index tip vs wrist). Forward = more negative z.
+      const relZ = lm[8].z - lm[0].z;
+      if (pushBaseline === null) pushBaseline = relZ;
+      const push = pushBaseline - relZ;            // >0 when pushing toward camera
+      const fill = handCursor.querySelector('.hc-fill');
+      const pp = Math.max(0, Math.min(1, push / PUSH_TRIGGER));
+      fill.style.width = fill.style.height = (pp * 40) + 'px';
+
+      if (!wasClicking && push > PUSH_TRIGGER) {
+        wasClicking = true;
+        handCursor.classList.add('click');
+        clickAt(pos.x, pos.y);
+      } else if (wasClicking && push < PUSH_RELEASE) {
+        wasClicking = false;
+        handCursor.classList.remove('click');
+      }
+      // drift baseline slowly while not pushing so it self-calibrates
+      if (push < PUSH_RELEASE) pushBaseline = pushBaseline * 0.9 + relZ * 0.1;
+    }
+
+    function hideCursor() {
+      if (!cursorActive) return;
+      handCursor.classList.remove('show', 'click');
+      cursorActive = false; pushBaseline = null; wasClicking = false;
+    }
+
+    function clickAt(x, y) {
+      const el = document.elementFromPoint(x, y);
+      if (el) el.click();
+    }
+
+    // ---------- AR ACCESSORIES (drawn on the cover-aligned overlay canvas) ----------
+    function syncOverlay() {
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (vw && (overlay.width !== vw || overlay.height !== vh)) { overlay.width = vw; overlay.height = vh; }
+    }
+
+    function drawAR(face) {
+      octx.clearRect(0, 0, overlay.width, overlay.height);
+      if (!face) return;
+      const vw = overlay.width, vh = overlay.height;
+      if (FX.cap) drawCap(octx, face, vw, vh);
+      if (FX.glasses) drawGlasses(octx, face, vw, vh);
+    }
+
+    function drawGlasses(ctx, f, vw, vh) {
+      const L = f[33], R = f[263];                 // outer eye corners
+      const lx = L.x * vw, ly = L.y * vh, rx = R.x * vw, ry = R.y * vh;
+      const cx = (lx + rx) / 2, cy = (ly + ry) / 2;
+      const eye = Math.hypot(rx - lx, ry - ly);
+      const ang = Math.atan2(ry - ly, rx - lx);
+      const off = eye * 0.52, lensR = eye * 0.34;
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(ang);
+      ctx.lineWidth = Math.max(3, eye * 0.05);
+      ctx.strokeStyle = 'rgba(12,14,20,0.95)';
+      ctx.fillStyle = 'rgba(18,22,30,0.5)';
+      for (const sgn of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(sgn * off, 0, lensR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(-off + lensR, 0); ctx.lineTo(off - lensR, 0); ctx.stroke();         // bridge
+      ctx.beginPath(); ctx.moveTo(-off - lensR, -eye * 0.05); ctx.lineTo(-off - lensR - eye * 0.55, -eye * 0.12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(off + lensR, -eye * 0.05); ctx.lineTo(off + lensR + eye * 0.55, -eye * 0.12); ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawCap(ctx, f, vw, vh) {
+      const Lp = f[234], Rp = f[454], top = f[10];
+      const lx = Lp.x * vw, ly = Lp.y * vh, rx = Rp.x * vw, ry = Rp.y * vh;
+      const faceW = Math.hypot(rx - lx, ry - ly);
+      const ang = Math.atan2(ry - ly, rx - lx);
+      const tx = top.x * vw, ty = top.y * vh;
+      ctx.save();
+      ctx.translate(tx, ty); ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(22,34,68,0.92)';
+      ctx.beginPath(); ctx.ellipse(0, -faceW * 0.16, faceW * 0.56, faceW * 0.46, 0, Math.PI, 0); ctx.fill(); // dome
+      ctx.beginPath(); ctx.ellipse(0, -faceW * 0.02, faceW * 0.62, faceW * 0.12, 0, 0, Math.PI * 2); ctx.fill(); // brim
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(0, -faceW * 0.30, faceW * 0.05, 0, Math.PI * 2); ctx.fill(); // button
+      ctx.restore();
     }
 
     // ---------- 3. CAMERA CONTROLS ----------
@@ -476,17 +661,20 @@
       c.width = w; c.height = h;
       const cx = c.getContext('2d');
       cx.translate(w, 0); cx.scale(-1, 1);
+      cx.filter = FILTERS[filterIndex].css;     // bake colour filter
       cx.drawImage(video, 0, 0, w, h);
+      cx.filter = 'none';
+      if (FX.glasses || FX.cap) cx.drawImage(overlay, 0, 0, w, h); // bake AR
 
       const dataUrl = c.toDataURL('image/png');
       const wrapper = document.createElement('div');
       wrapper.className = 'snapshot-item';
 
       const img = document.createElement('img'); img.src = dataUrl;
-      const overlay = document.createElement('div'); overlay.className = 'download-overlay';
-      overlay.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+      const dlOverlay = document.createElement('div'); dlOverlay.className = 'download-overlay';
+      dlOverlay.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
 
-      wrapper.appendChild(img); wrapper.appendChild(overlay);
+      wrapper.appendChild(img); wrapper.appendChild(dlOverlay);
       wrapper.addEventListener('click', () => {
         const a = document.createElement('a'); a.href = dataUrl; a.download = `Aperture_${Date.now()}.png`;
         a.click();
@@ -549,8 +737,10 @@
 
     // ---------- 5. PREDICTION LOOP ----------
     function predictWebcam() {
-      currentZoom += (targetZoom - currentZoom) * 0.15;
-      video.style.transform = `scaleX(-1) scale(${currentZoom})`;
+      currentZoom += (targetZoom - currentZoom) * 0.22;   // snappier
+      const tf = `scaleX(-1) scale(${currentZoom})`;
+      video.style.transform = tf;
+      overlay.style.transform = tf;
 
       if (video.currentTime !== lastVideoTime && video.videoWidth > 0 && faceLandmarker && handLandmarker) {
         lastVideoTime = video.currentTime;
@@ -563,39 +753,57 @@
         }
         lastFrameStamp = now;
 
+        syncOverlay();
         const faceResult = faceLandmarker.detectForVideo(video, now);
         const handResult = handLandmarker.detectForVideo(video, now);
 
-        // Hands
+        // ----- Hands -----
         handTracked = !!(handResult.landmarks && handResult.landmarks.length > 0);
+        let pointing = false;
+
         if (handTracked) {
-          const gesture = getFingersUpCount(handResult.landmarks);
+          const pose = getPose(handResult.landmarks);
 
-          // Mode switching via finger count
-          if (gesture === 'TWO' && cameraState === 'STANDBY') {
-            cameraState = 'ARM_COUNTDOWN';
-            armCountdownStart = Date.now();
-          } else if (gesture === 'THREE') {
-            cameraState = 'STANDBY';
-            resetPinch();
+          // Hand cursor takes priority while pointing
+          if (FX.cursor && pose === 'POINT') {
+            pointing = true;
+            showCursor(handResult.landmarks);
+          } else {
+            hideCursor();
           }
 
-          // STANDBY: pinch spread controls zoom (only here)
-          if (cameraState === 'STANDBY') {
-            handlePinchZoom(handResult.landmarks);
-            pinchSignal = 0;
-          }
-          // ARMED: a pinch fires the snap countdown (zoom disabled)
-          else if (cameraState === 'ARMED') {
-            if (detectPinch(handResult.landmarks)) startSnapCountdown();
+          // Swipe filters with an open palm
+          if (pose === 'OPEN') handleSwipe(handResult.landmarks);
+          else resetSwipe();
+
+          if (!pointing) {
+            // Mode switching
+            if (pose === 'TWO' && cameraState === 'STANDBY') {
+              cameraState = 'ARM_COUNTDOWN';
+              armCountdownStart = Date.now();
+            } else if (pose === 'THREE') {
+              cameraState = 'STANDBY';
+              resetPinch();
+            }
+
+            if (cameraState === 'STANDBY') {
+              if (pose === 'OTHER') handlePinchZoom(handResult.landmarks); // zoom only here
+              pinchSignal = 0;
+            } else if (cameraState === 'ARMED') {
+              if (detectPinch(handResult.landmarks)) startSnapCountdown();  // pinch = shoot
+            } else {
+              pinchSignal = 0;
+            }
           } else {
             pinchSignal = 0;
           }
         } else {
+          hideCursor();
+          resetSwipe();
           resetPinch();
         }
 
-        // Timers
+        // ----- Timers -----
         if (cameraState === 'ARM_COUNTDOWN' && Date.now() - armCountdownStart >= ARM_SECONDS * 1000) {
           cameraState = 'ARMED';
           resetPinch();
@@ -606,8 +814,10 @@
           resetPinch();
         }
 
-        // Face (used for framing lock + telemetry only)
+        // ----- Face (framing lock, telemetry, AR) -----
         faceTracked = !!(faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0);
+        lastFace = faceTracked ? faceResult.faceLandmarks[0] : null;
+        drawAR((FX.glasses || FX.cap) ? lastFace : null);
 
         updateUI();
       }
@@ -717,6 +927,7 @@
     (function initSettings() {
       const btn = document.getElementById('settingsBtn');
       const panel = document.getElementById('settingsPanel');
+      const HUD_KEYS = ['telemetry', 'voice', 'reticle', 'viewfinder', 'effects'];
 
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -724,7 +935,6 @@
         btn.classList.toggle('open');
       });
 
-      // close when tapping outside
       document.addEventListener('click', (e) => {
         if (!panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
           panel.classList.remove('open');
@@ -732,12 +942,20 @@
         }
       });
 
+      function apply(key, on) {
+        FX[key] = on;
+        if (HUD_KEYS.includes(key)) document.body.classList.toggle('off-' + key, !on);
+        if (key === 'cursor' && !on) hideCursor();
+        if ((key === 'glasses' || key === 'cap') && !on && !FX.glasses && !FX.cap) {
+          octx.clearRect(0, 0, overlay.width, overlay.height);
+        }
+      }
+
       panel.querySelectorAll('.toggle-row').forEach((row) => {
+        const key = row.dataset.key;
         row.addEventListener('click', () => {
-          const sw = row.querySelector('.switch');
-          const on = sw.classList.toggle('on');
-          if (row.dataset.toggle === 'hud') document.body.classList.toggle('hud-off', !on);
-          if (row.dataset.toggle === 'fx') document.body.classList.toggle('fx-off', !on);
+          const on = row.querySelector('.switch').classList.toggle('on');
+          apply(key, on);
         });
       });
     })();
@@ -749,12 +967,14 @@
 
         faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: 'CPU' },
-          outputFaceBlendshapes: false, runningMode: 'VIDEO', numFaces: 1
+          outputFaceBlendshapes: false, runningMode: 'VIDEO', numFaces: 1,
+          minFaceDetectionConfidence: 0.3, minFacePresenceConfidence: 0.3, minTrackingConfidence: 0.3
         });
 
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate: 'CPU' },
-          runningMode: 'VIDEO', numHands: 1
+          runningMode: 'VIDEO', numHands: 1,
+          minHandDetectionConfidence: 0.3, minHandPresenceConfidence: 0.3, minTrackingConfidence: 0.3
         });
 
         loader.style.display = 'none';
