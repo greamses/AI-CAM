@@ -5,69 +5,152 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Aperture // AI Camera</title>
-  
+
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icon-192.png">
-  
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    
+
+    :root {
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --grey: #9ca3af;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
     body {
       background: #000000; font-family: 'Plus Jakarta Sans', sans-serif;
       overflow: hidden; height: 100vh; height: 100dvh; width: 100vw;
       color: #ffffff; user-select: none; -webkit-font-smoothing: antialiased;
     }
-    
+
     .app { display: flex; flex-direction: column; height: 100%; width: 100%; position: relative; }
     .camera-stage { flex: 1; position: relative; background: #000000; overflow: hidden; }
     .camera-viewport { width: 100%; height: 100%; position: relative; display: flex; align-items: center; justify-content: center; }
-    
+
     #webcam { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
     #overlayCanvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
-    
+
+    /* Subtle scan grid */
+    .scan-grid {
+      position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0.5;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
+    }
+
     .viewfinder { position: absolute; inset: 24px; pointer-events: none; z-index: 10; border: 1px solid rgba(255, 255, 255, 0.05); }
     .vf-corner { position: absolute; width: 32px; height: 32px; border-color: rgba(255, 255, 255, 0.4); border-style: solid; transition: border-color 0.3s; }
     .vf-tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
     .vf-tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
     .vf-bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
     .vf-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
-    
+
+    /* Center reticle */
+    .reticle {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 180px; height: 180px; z-index: 12; pointer-events: none;
+      transition: opacity 0.3s, transform 0.4s cubic-bezier(0.2,0,0,1);
+      opacity: 0.25;
+    }
+    .reticle.locked { opacity: 0.9; transform: translate(-50%, -50%) scale(0.82); }
+    .reticle .r-bracket { position: absolute; width: 28px; height: 28px; border: 2px solid var(--grey); transition: border-color 0.3s; }
+    .reticle.locked .r-bracket { border-color: var(--green); }
+    .r-tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
+    .r-tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
+    .r-bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+    .r-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+    .reticle .r-dot {
+      position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; border-radius: 50%;
+      background: var(--grey); transform: translate(-50%, -50%); transition: background 0.3s, box-shadow 0.3s;
+    }
+    .reticle.locked .r-dot { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .reticle .r-ring {
+      position: absolute; inset: 18px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.12);
+      animation: ringspin 14s linear infinite;
+    }
+    .reticle.locked .r-ring { border-color: rgba(16,185,129,0.35); }
+    @keyframes ringspin { to { transform: rotate(360deg); } }
+
     #flash-overlay { position: absolute; inset: 0; background: #ffffff; z-index: 40; opacity: 0; pointer-events: none; transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1); }
     #flash-overlay.active { opacity: 1; transition: opacity 0.05s ease-out; }
-    
-    /* Center Countdown Text */
+
     #centerCountdown {
       position: absolute; z-index: 30; font-size: 180px; font-weight: 800; color: rgba(255, 255, 255, 0.8);
       text-shadow: 0 12px 48px rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center;
       pointer-events: none; animation: popIn 1s infinite cubic-bezier(0.2, 0, 0, 1); font-variant-numeric: tabular-nums;
     }
     @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 20% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
-    
-    .top-hud { position: absolute; top: 36px; left: 36px; right: 36px; display: flex; justify-content: space-between; align-items: center; z-index: 25; pointer-events: none; }
+
+    .top-hud { position: absolute; top: 36px; left: 36px; right: 36px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 25; pointer-events: none; gap: 12px; }
     .glass-panel { pointer-events: auto; background: rgba(15, 15, 20, 0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 100px; padding: 10px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); }
-    
+
     .brand { font-weight: 700; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; color: #ffffff; }
     .brand svg { width: 20px; height: 20px; stroke: #ffffff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    
+
     .status-group { display: flex; align-items: center; gap: 10px; }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4b5563; transition: all 0.3s ease; }
-    .status-dot.active { background: #10b981; box-shadow: 0 0 12px rgba(16, 185, 129, 0.6); }
-    .status-dot.warning { background: #f59e0b; box-shadow: 0 0 12px rgba(245, 158, 11, 0.6); }
-    .status-dot.alert { background: #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.6); }
-    .status-dot.standby { background: #9ca3af; box-shadow: 0 0 12px rgba(156, 163, 175, 0.4); }
-    
+    .status-dot.active { background: var(--green); box-shadow: 0 0 12px rgba(16, 185, 129, 0.6); }
+    .status-dot.warning { background: var(--amber); box-shadow: 0 0 12px rgba(245, 158, 11, 0.6); }
+    .status-dot.alert { background: var(--red); box-shadow: 0 0 12px rgba(239, 68, 68, 0.6); }
+    .status-dot.standby { background: var(--grey); box-shadow: 0 0 12px rgba(156, 163, 175, 0.4); }
+
     #gestureLabel { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #e5e7eb; font-variant-numeric: tabular-nums; }
-    
+
+    /* ---- Telemetry panel (signature element) ---- */
+    .telemetry {
+      position: absolute; top: 110px; left: 36px; z-index: 24; pointer-events: none;
+      background: rgba(10, 10, 14, 0.42); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 14px 16px;
+      width: 232px; font-family: var(--mono); box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    }
+    .tel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .tel-title { font-size: 9px; font-weight: 700; letter-spacing: 0.22em; color: rgba(255,255,255,0.45); }
+    .tel-live { font-size: 9px; font-weight: 600; letter-spacing: 0.18em; color: var(--green); display: flex; align-items: center; gap: 5px; }
+    .tel-live::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 1.4s ease-in-out infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    .tel-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+    .tel-row:last-child { margin-bottom: 0; }
+    .tel-key { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: rgba(255,255,255,0.5); white-space: nowrap; }
+    .tel-val { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #fff; font-variant-numeric: tabular-nums; }
+    .tel-val.off { color: rgba(255,255,255,0.3); }
+    .tel-val.on { color: var(--green); }
+
+    .tel-bar { flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; position: relative; }
+    .tel-bar > i { position: absolute; inset: 0; width: 0%; border-radius: 4px; transition: width 0.08s linear, background 0.2s; }
+
+    /* ---- Voice / audio meter (right side) ---- */
+    .voice-hud {
+      position: absolute; top: 110px; right: 36px; z-index: 24; pointer-events: none;
+      background: rgba(10, 10, 14, 0.42); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 14px 16px;
+      width: 168px; font-family: var(--mono); box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    }
+    .voice-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .voice-top .vt-label { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: rgba(255,255,255,0.45); }
     .mic-icon { display: flex; align-items: center; justify-content: center; opacity: 0.3; transition: all 0.3s; }
     .mic-icon svg { width: 14px; height: 14px; stroke: #ffffff; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
     .mic-icon.listening { opacity: 1; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8)); }
+
+    .spectrum { display: flex; align-items: flex-end; gap: 3px; height: 38px; margin-bottom: 10px; }
+    .spectrum .sbar { flex: 1; min-width: 0; height: 6%; border-radius: 2px; background: var(--grey); transition: height 0.06s linear, background 0.2s; }
+    .spectrum.hot .sbar { background: var(--green); }
+
+    .voice-cmd { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; color: rgba(255,255,255,0.55); min-height: 14px; }
+    .voice-cmd b { color: var(--green); font-weight: 700; }
 
     .gallery-dock {
       position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 72px); z-index: 25;
@@ -76,16 +159,16 @@
     }
     .gallery-dock::-webkit-scrollbar { display: none; }
     .gallery-dock:empty { display: none; }
-    
+
     .snapshot-item { position: relative; flex: 0 0 auto; width: 72px; height: 72px; border-radius: 14px; overflow: hidden; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.15); transition: all 0.3s; background: #000; }
     .snapshot-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
     .snapshot-item:hover { transform: translateY(-4px); border-color: rgba(255, 255, 255, 0.6); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4); }
     .snapshot-item:hover img { transform: scale(1.1); }
-    
+
     .download-overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
     .snapshot-item:hover .download-overlay { opacity: 1; }
     .download-overlay svg { width: 24px; height: 24px; stroke: #ffffff; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-    
+
     #loader { position: fixed; inset: 0; background: #000000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999; gap: 24px; }
     .spinner-svg { width: 48px; height: 48px; animation: spin 2s linear infinite; stroke: #ffffff; fill: none; stroke-width: 2; stroke-dasharray: 90 150; stroke-dashoffset: 0; stroke-linecap: round; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -93,12 +176,21 @@
     #loaderSubtext { font-size: 12px; font-weight: 500; color: #9ca3af; letter-spacing: 0.05em; }
     #startBtn { display: none; margin-top: 20px; background: #ffffff; color: #000000; border: none; padding: 12px 24px; border-radius: 100px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer; transition: transform 0.2s; }
     #startBtn:active { transform: scale(0.95); }
-    
+
     @media (max-width: 600px) {
       .viewfinder { inset: 16px; }
-      .top-hud { top: 24px; left: 16px; right: 16px; flex-direction: column; gap: 12px; align-items: flex-start; }
+      .top-hud { top: 24px; left: 16px; right: 16px; }
+      .brand { font-size: 12px; padding: 8px 14px; }
+      .telemetry { top: 92px; left: 16px; width: 196px; padding: 12px; }
+      .voice-hud { top: 92px; right: 16px; width: 132px; padding: 12px; }
+      .reticle { width: 130px; height: 130px; }
       .gallery-dock { bottom: 24px; padding: 10px; border-radius: 20px; max-width: calc(100vw - 32px); }
       .snapshot-item { width: 64px; height: 64px; }
+      #centerCountdown { font-size: 130px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reticle .r-ring, .tel-live::before { animation: none; }
     }
   </style>
 </head>
@@ -112,22 +204,30 @@
       <button id="startBtn">Tap to Activate</button>
     </div>
   </div>
-  
+
   <div class="app">
     <div class="camera-stage">
       <div class="viewfinder" id="viewfinder">
         <div class="vf-corner vf-tl"></div><div class="vf-corner vf-tr"></div>
         <div class="vf-corner vf-bl"></div><div class="vf-corner vf-br"></div>
       </div>
-      
+
       <div class="camera-viewport">
         <video id="webcam" autoplay playsinline muted></video>
         <canvas id="overlayCanvas"></canvas>
+        <div class="scan-grid"></div>
         <div id="flash-overlay"></div>
-        
+
+        <div class="reticle" id="reticle">
+          <div class="r-ring"></div>
+          <div class="r-bracket r-tl"></div><div class="r-bracket r-tr"></div>
+          <div class="r-bracket r-bl"></div><div class="r-bracket r-br"></div>
+          <div class="r-dot"></div>
+        </div>
+
         <div id="centerCountdown">3</div>
         <div class="gallery-dock" id="galleryContainer"></div>
-        
+
         <div class="top-hud">
           <div class="glass-panel brand">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="4"></line><line x1="12" y1="20" x2="12" y2="22"></line><line x1="2" y1="12" x2="4" y2="12"></line><line x1="20" y1="12" x2="22" y2="12"></line></svg>
@@ -136,6 +236,42 @@
           <div class="glass-panel status-group">
             <span class="status-dot" id="statusDot"></span>
             <span id="gestureLabel">Booting...</span>
+          </div>
+        </div>
+
+        <!-- Sensor telemetry -->
+        <div class="telemetry" id="telemetry">
+          <div class="tel-head">
+            <span class="tel-title">SENSOR TELEMETRY</span>
+            <span class="tel-live">LIVE</span>
+          </div>
+          <div class="tel-row">
+            <span class="tel-key">FACE</span>
+            <span class="tel-val off" id="telFace">NO LOCK</span>
+          </div>
+          <div class="tel-row">
+            <span class="tel-key">HAND</span>
+            <span class="tel-val off" id="telHand">NO LOCK</span>
+          </div>
+          <div class="tel-row">
+            <span class="tel-key">NOD SIG</span>
+            <div class="tel-bar"><i id="telNodBar"></i></div>
+            <span class="tel-val" id="telNodVal" style="min-width:34px;text-align:right">00%</span>
+          </div>
+          <div class="tel-row">
+            <span class="tel-key">ZOOM</span>
+            <span class="tel-val" id="telZoom">1.00x</span>
+          </div>
+          <div class="tel-row">
+            <span class="tel-key">FPS</span>
+            <span class="tel-val" id="telFps">--</span>
+          </div>
+        </div>
+
+        <!-- Voice / audio meter -->
+        <div class="voice-hud" id="voiceHud">
+          <div class="voice-top">
+            <span class="vt-label">VOICE I/O</span>
             <span class="mic-icon" id="micIcon">
               <svg viewBox="0 0 24 24">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
@@ -144,14 +280,17 @@
               </svg>
             </span>
           </div>
+          <div class="spectrum" id="spectrum"></div>
+          <div class="voice-cmd" id="voiceCmd">AWAITING INPUT</div>
         </div>
+
       </div>
     </div>
   </div>
-  
+
   <script type="module">
     import { FaceLandmarker, HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.19/vision_bundle.mjs";
-    
+
     const video = document.getElementById('webcam');
     const gallery = document.getElementById('galleryContainer');
     const flash = document.getElementById('flash-overlay');
@@ -161,75 +300,101 @@
     const micIcon = document.getElementById('micIcon');
     const loader = document.getElementById('loader');
     const vfCorners = document.querySelectorAll('.vf-corner');
-    
+    const reticle = document.getElementById('reticle');
+    const spectrumEl = document.getElementById('spectrum');
+    const voiceCmd = document.getElementById('voiceCmd');
+
+    // Telemetry refs
+    const telFace = document.getElementById('telFace');
+    const telHand = document.getElementById('telHand');
+    const telNodBar = document.getElementById('telNodBar');
+    const telNodVal = document.getElementById('telNodVal');
+    const telZoom = document.getElementById('telZoom');
+    const telFps = document.getElementById('telFps');
+
     let faceLandmarker = null;
     let handLandmarker = null;
     let lastVideoTime = -1;
     let isShutterCooldown = false;
     let currentZoom = 1.0;
     let targetZoom = 1.0;
-    
-    let cameraState = 'STANDBY'; 
+
+    let cameraState = 'STANDBY';
     let armCountdownStart = 0;
     let snapCountdownStart = 0;
-    let lastCountNumber = -1; 
-    
-    // Original-Style Nod State Variables
-    let nodStartTime = 0;
-    let isPrimedForSnap = false;
+    let lastCountNumber = -1;
 
-    // --- 1. RESTORED & IMPROVED NOD MATH ---
-    function getDistance(a, b) { 
-      return Math.hypot(a.x - b.x, a.y - b.y); 
-    }
-    
+    // Live telemetry signals
+    let faceTracked = false;
+    let handTracked = false;
+    let nodSignal = 0;     // 0..1 how close to triggering a nod
+    let fpsValue = 0;
+    let lastFrameStamp = 0;
+
+    // ---------- 1. ADAPTIVE NOD DETECTION ----------
+    // Pitch proxy = (nose->chin) / (forehead->nose). Drops when head tilts down.
+    // Self-calibrating baseline removes per-face / per-distance bias, and a
+    // velocity-style dip->recover state machine fires fast on small nods while
+    // ignoring a sustained "looking down" pose.
+    function getDistance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+    let ratioBaseline = null;
+    let nodState = 'READY';      // READY -> DIPPED -> (recover) = nod
+    let nodDipTime = 0;
+
+    const NOD_TRIGGER = 0.055;   // ~5.5% drop below neutral starts a nod
+    const NOD_RECOVER = 0.020;   // returning to within 2% completes it
+    const NOD_HOLD_MAX = 600;    // ms; longer than this = just looking down
+
     function detectNod(landmarks) {
-      if (!landmarks || landmarks.length === 0) return false;
-      
-      const now = Date.now();
-      const upper = getDistance(landmarks[10], landmarks[1]);  // Forehead to Nose
-      const lower = getDistance(landmarks[1], landmarks[152]); // Nose to Chin
-      
-      if (upper === 0) return false;
+      if (!landmarks || landmarks.length === 0) { nodSignal = 0; return false; }
+
+      const upper = getDistance(landmarks[10], landmarks[1]);   // forehead -> nose
+      const lower = getDistance(landmarks[1], landmarks[152]);  // nose -> chin
+      if (upper === 0) { nodSignal = 0; return false; }
       const ratio = lower / upper;
-      
-      // Original used 0.85. 0.90 makes it more sensitive to very slight downward nods.
-      if (ratio < 0.90) {
-        if (nodStartTime === 0) nodStartTime = now;
-        // Reduced hold time to 50ms for hyper-responsiveness
-        if (now - nodStartTime > 50) {
-          isPrimedForSnap = true;
+
+      if (ratioBaseline === null) ratioBaseline = ratio;
+      const drop = (ratioBaseline - ratio) / ratioBaseline; // >0 means head tilted down
+
+      // surface signal strength to the HUD
+      nodSignal = Math.max(0, Math.min(1, drop / NOD_TRIGGER));
+
+      const now = performance.now();
+
+      if (nodState === 'READY') {
+        // drift baseline toward neutral only while head is roughly level
+        if (Math.abs(drop) < 0.03) ratioBaseline = ratioBaseline * 0.9 + ratio * 0.1;
+        if (drop > NOD_TRIGGER) { nodState = 'DIPPED'; nodDipTime = now; }
+      } else { // DIPPED
+        if (now - nodDipTime > NOD_HOLD_MAX) {
+          // held down too long -> treat as new neutral, not a nod
+          nodState = 'READY';
+          ratioBaseline = ratio;
+          return false;
         }
-      } else {
-        nodStartTime = 0;
-        // Original used 0.98. 0.95 means it triggers quicker on the way back up.
-        if (isPrimedForSnap && ratio > 0.95) {
-          isPrimedForSnap = false;
-          return true; // Snap!
-        }
-        // Safety reset if looking too far up
-        if (ratio > 1.05) {
-          isPrimedForSnap = false;
-        }
+        if (drop < NOD_RECOVER) { nodState = 'READY'; return true; } // snap up = nod
       }
       return false;
     }
-    
-    // --- 2. GESTURES & ZOOMING ---
+
+    function resetNod() { nodState = 'READY'; nodSignal = 0; }
+
+    // ---------- 2. GESTURES & ZOOM ----------
     function getFingersUpCount(landmarks) {
       if (!landmarks || landmarks.length === 0) return 'NONE';
       const lm = landmarks[0];
       const isUp = (tip, pip) => lm[tip].y < lm[pip].y;
-      
+
       const index = isUp(8, 6);
       const middle = isUp(12, 10);
       const ring = isUp(16, 14);
       const pinky = isUp(20, 18);
-      
+
       if (index && middle && !ring && !pinky) return 'TWO';
       if (index && middle && ring && !pinky) return 'THREE';
-      
-      handleHandZoom(landmarks); 
+
+      handleHandZoom(landmarks);
       return 'OTHER';
     }
 
@@ -237,8 +402,8 @@
       const dist = Math.hypot(landmarks[0][4].x - landmarks[0][8].x, landmarks[0][4].y - landmarks[0][8].y);
       targetZoom = Math.min(3.0, Math.max(1.0, 1.0 + (dist - 0.03) * 10));
     }
-    
-    // --- 3. CAMERA CONTROLS ---
+
+    // ---------- 3. CAMERA CONTROLS ----------
     function startSnapCountdown() {
       if (cameraState === 'SNAP_COUNTDOWN' || isShutterCooldown) return;
       cameraState = 'SNAP_COUNTDOWN';
@@ -252,9 +417,9 @@
       flash.classList.add('active');
       setTimeout(() => flash.classList.remove('active'), 50);
       takeSnapshot();
-      setTimeout(() => isShutterCooldown = false, 1500); 
+      setTimeout(() => isShutterCooldown = false, 1500);
     }
-    
+
     function takeSnapshot() {
       const w = video.videoWidth || 640;
       const h = video.videoHeight || 480;
@@ -263,49 +428,49 @@
       const cx = c.getContext('2d');
       cx.translate(w, 0); cx.scale(-1, 1);
       cx.drawImage(video, 0, 0, w, h);
-      
+
       const dataUrl = c.toDataURL('image/png');
       const wrapper = document.createElement('div');
       wrapper.className = 'snapshot-item';
-      
+
       const img = document.createElement('img'); img.src = dataUrl;
       const overlay = document.createElement('div'); overlay.className = 'download-overlay';
       overlay.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
-      
+
       wrapper.appendChild(img); wrapper.appendChild(overlay);
       wrapper.addEventListener('click', () => {
         const a = document.createElement('a'); a.href = dataUrl; a.download = `Aperture_${Date.now()}.png`;
         a.click();
       });
-      
+
       gallery.prepend(wrapper);
       if (gallery.children.length > 20) gallery.removeChild(gallery.lastChild);
     }
-    
-    // --- 4. UI RENDERER ---
+
+    // ---------- 4. UI RENDERER ----------
     function updateUI() {
       let label = ''; let colorClass = ''; let cornerColor = 'rgba(255, 255, 255, 0.4)';
       centerCountdown.style.display = 'none';
 
       if (isShutterCooldown) {
-        label = 'CAPTURED'; colorClass = 'alert'; cornerColor = '#ef4444';
+        label = 'CAPTURED'; colorClass = 'alert'; cornerColor = 'var(--red)';
       } else if (cameraState === 'SNAP_COUNTDOWN') {
         const left = Math.ceil(3 - (Date.now() - snapCountdownStart) / 1000);
-        label = `SNAPPING IN ${left}...`; colorClass = 'alert'; cornerColor = '#ef4444';
-        
+        label = `SNAPPING IN ${left}...`; colorClass = 'alert'; cornerColor = 'var(--red)';
+
         centerCountdown.style.display = 'flex';
         centerCountdown.textContent = left;
         if (left !== lastCountNumber) {
           centerCountdown.style.animation = 'none';
-          void centerCountdown.offsetWidth; 
+          void centerCountdown.offsetWidth;
           centerCountdown.style.animation = 'popIn 1s infinite cubic-bezier(0.2, 0, 0, 1)';
           lastCountNumber = left;
         }
       } else if (cameraState === 'ARM_COUNTDOWN') {
         const left = Math.ceil(3 - (Date.now() - armCountdownStart) / 1000);
-        label = `ARMING IN ${left}...`; colorClass = 'warning'; cornerColor = '#f59e0b';
+        label = `ARMING IN ${left}...`; colorClass = 'warning'; cornerColor = 'var(--amber)';
       } else if (cameraState === 'ARMED') {
-        label = 'NOD TO COUNTDOWN'; colorClass = 'active'; cornerColor = '#10b981';
+        label = 'NOD TO COUNTDOWN'; colorClass = 'active'; cornerColor = 'var(--green)';
       } else {
         label = 'STANDBY (2 FINGERS TO ARM)'; colorClass = 'standby'; cornerColor = 'rgba(255, 255, 255, 0.1)';
       }
@@ -314,23 +479,48 @@
       statusDot.className = `status-dot ${colorClass}`;
       vfCorners.forEach(c => c.style.borderColor = cornerColor);
     }
-    
-    // --- 5. PREDICTION LOOP ---
+
+    // Telemetry HUD updates run every frame for smoothness
+    function renderTelemetry() {
+      reticle.classList.toggle('locked', faceTracked);
+
+      telFace.textContent = faceTracked ? 'LOCK' : 'NO LOCK';
+      telFace.className = 'tel-val ' + (faceTracked ? 'on' : 'off');
+      telHand.textContent = handTracked ? 'LOCK' : 'NO LOCK';
+      telHand.className = 'tel-val ' + (handTracked ? 'on' : 'off');
+
+      const pct = Math.round(nodSignal * 100);
+      telNodBar.style.width = pct + '%';
+      telNodBar.style.background = nodSignal > 0.85 ? 'var(--red)' : nodSignal > 0.4 ? 'var(--amber)' : 'var(--green)';
+      telNodVal.textContent = String(pct).padStart(2, '0') + '%';
+
+      telZoom.textContent = currentZoom.toFixed(2) + 'x';
+      telFps.textContent = fpsValue ? String(Math.round(fpsValue)) : '--';
+    }
+
+    // ---------- 5. PREDICTION LOOP ----------
     function predictWebcam() {
       currentZoom += (targetZoom - currentZoom) * 0.15;
       video.style.transform = `scaleX(-1) scale(${currentZoom})`;
-      
+
       if (video.currentTime !== lastVideoTime && video.videoWidth > 0 && faceLandmarker && handLandmarker) {
         lastVideoTime = video.currentTime;
         const now = performance.now();
-        
+
+        // FPS (smoothed)
+        if (lastFrameStamp) {
+          const inst = 1000 / (now - lastFrameStamp);
+          fpsValue = fpsValue ? fpsValue * 0.85 + inst * 0.15 : inst;
+        }
+        lastFrameStamp = now;
+
         const faceResult = faceLandmarker.detectForVideo(video, now);
         const handResult = handLandmarker.detectForVideo(video, now);
-        
-        // Process Hands
-        if (handResult.landmarks && handResult.landmarks.length > 0) {
+
+        // Hands
+        handTracked = !!(handResult.landmarks && handResult.landmarks.length > 0);
+        if (handTracked) {
           const gesture = getFingersUpCount(handResult.landmarks);
-          
           if (gesture === 'TWO' && cameraState === 'STANDBY') {
             cameraState = 'ARM_COUNTDOWN';
             armCountdownStart = Date.now();
@@ -338,89 +528,146 @@
             cameraState = 'STANDBY';
           }
         }
-        
-        // Process Timers
-        if (cameraState === 'ARM_COUNTDOWN') {
-          if (Date.now() - armCountdownStart >= 3000) cameraState = 'ARMED';
+
+        // Timers
+        if (cameraState === 'ARM_COUNTDOWN' && Date.now() - armCountdownStart >= 3000) cameraState = 'ARMED';
+        if (cameraState === 'SNAP_COUNTDOWN' && Date.now() - snapCountdownStart >= 3000) {
+          executeSnap();
+          cameraState = 'ARMED';
+          resetNod();
         }
-        
-        if (cameraState === 'SNAP_COUNTDOWN') {
-          if (Date.now() - snapCountdownStart >= 3000) {
-            executeSnap();
-            cameraState = 'ARMED'; 
-            nodStartTime = 0;
-            isPrimedForSnap = false;
-          }
-        }
-        
-        // Process Face
-        if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
+
+        // Face
+        faceTracked = !!(faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0);
+        if (faceTracked) {
           if (cameraState === 'ARMED') {
-            const didNod = detectNod(faceResult.faceLandmarks[0]);
-            if (didNod) startSnapCountdown();
+            if (detectNod(faceResult.faceLandmarks[0])) startSnapCountdown();
           } else {
-            nodStartTime = 0;
-            isPrimedForSnap = false;
+            resetNod();
           }
         } else {
-          nodStartTime = 0;
-          isPrimedForSnap = false;
+          resetNod();
         }
-        
+
         updateUI();
       }
+
+      renderTelemetry();
       requestAnimationFrame(predictWebcam);
     }
 
-    // --- 6. VOICE COMMANDS ---
+    // ---------- 6. VOICE COMMANDS (fast / interim) ----------
+    const COMMANDS = [
+      { keys: ['snap', 'cheese', 'shoot', 'capture', 'take it', 'go'], label: 'CAPTURE', run: () => executeSnap() },
+      { keys: ['count', 'timer', 'countdown'], label: 'COUNTDOWN', run: () => startSnapCountdown() },
+      { keys: ['zoom in', 'closer'], label: 'ZOOM IN', run: () => targetZoom = Math.min(3.0, targetZoom + 0.5) },
+      { keys: ['zoom out', 'back out', 'wider'], label: 'ZOOM OUT', run: () => targetZoom = Math.max(1.0, targetZoom - 0.5) },
+      { keys: ['zoom full', 'max zoom', 'full zoom'], label: 'MAX ZOOM', run: () => targetZoom = 3.0 },
+      { keys: ['reset zoom', 'zoom reset', 'normal'], label: 'RESET ZOOM', run: () => targetZoom = 1.0 }
+    ];
+
+    let lastVoiceFire = 0;
+    function handleVoice(text) {
+      const now = Date.now();
+      if (now - lastVoiceFire < 600) return false; // debounce repeats from interim+final
+      for (const cmd of COMMANDS) {
+        if (cmd.keys.some(k => text.includes(k))) {
+          cmd.run();
+          lastVoiceFire = now;
+          voiceCmd.innerHTML = `<b>${cmd.label}</b>`;
+          clearTimeout(handleVoice._t);
+          handleVoice._t = setTimeout(() => { voiceCmd.textContent = 'AWAITING INPUT'; }, 1600);
+          return true;
+        }
+      }
+      return false;
+    }
+
     function initVoiceCommands() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) return;
-      
+      if (!SpeechRecognition) { voiceCmd.textContent = 'VOICE UNAVAILABLE'; return; }
+
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
-      recognition.interimResults = false;
+      recognition.interimResults = true;   // act on partial transcripts -> much faster
+      recognition.maxAlternatives = 3;     // catch phonetic variants
       recognition.lang = 'en-US';
-      
-      recognition.onstart = () => micIcon.classList.add('listening');
-      recognition.onerror = () => micIcon.classList.remove('listening');
-      
+
+      recognition.onstart = () => { micIcon.classList.add('listening'); };
+      recognition.onerror = () => { micIcon.classList.remove('listening'); };
+
       recognition.onresult = (event) => {
-        const last = event.results.length - 1;
-        const text = event.results[last][0].transcript.toLowerCase();
-        
-        if (text.includes('zoom in')) {
-          targetZoom = Math.min(3.0, targetZoom + 0.5);
-        } else if (text.includes('zoom out')) {
-          targetZoom = Math.max(1.0, targetZoom - 0.5);
-        } else if (text.includes('zoom full') || text.includes('max zoom')) {
-          targetZoom = 3.0;
-        } else if (text.includes('count') || text.includes('timer')) {
-          startSnapCountdown();
-        } else if (text.includes('snap') || text.includes('cheese') || text.includes('shoot') || text.includes('capture')) {
-          executeSnap();
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const res = event.results[i];
+          for (let a = 0; a < res.length; a++) {
+            if (handleVoice((res[a].transcript || '').toLowerCase().trim())) return;
+          }
         }
       };
-      
-      recognition.onend = () => { try { recognition.start(); } catch(e){} };
-      try { recognition.start(); } catch(e){}
+
+      recognition.onend = () => {
+        micIcon.classList.remove('listening');
+        try { recognition.start(); } catch (e) {}
+      };
+      try { recognition.start(); } catch (e) {}
     }
-    
-    // --- 7. BOOTUP SEQUENCE ---
+
+    // ---------- 7. AUDIO SPECTRUM METER ----------
+    const SPECTRUM_BARS = 14;
+    const sbars = [];
+    for (let i = 0; i < SPECTRUM_BARS; i++) {
+      const b = document.createElement('div');
+      b.className = 'sbar';
+      spectrumEl.appendChild(b);
+      sbars.push(b);
+    }
+
+    let analyser = null, audioData = null;
+    function initAudioMeter(stream) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AC();
+        const src = ctx.createMediaStreamSource(stream);
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = 64;
+        analyser.smoothingTimeConstant = 0.7;
+        src.connect(analyser);
+        audioData = new Uint8Array(analyser.frequencyBinCount);
+        if (ctx.state === 'suspended') ctx.resume();
+        renderSpectrum();
+      } catch (e) {}
+    }
+
+    function renderSpectrum() {
+      if (analyser && audioData) {
+        analyser.getByteFrequencyData(audioData);
+        const step = Math.floor(audioData.length / SPECTRUM_BARS) || 1;
+        let peak = 0;
+        for (let i = 0; i < SPECTRUM_BARS; i++) {
+          const v = audioData[i * step] / 255;       // 0..1
+          peak = Math.max(peak, v);
+          sbars[i].style.height = (6 + v * 94) + '%';
+        }
+        spectrumEl.classList.toggle('hot', peak > 0.28);
+      }
+      requestAnimationFrame(renderSpectrum);
+    }
+
+    // ---------- 8. BOOTUP ----------
     async function bootML() {
       try {
         const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.19/wasm');
-        
+
         faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: 'CPU' },
           outputFaceBlendshapes: false, runningMode: 'VIDEO', numFaces: 1
         });
-        
+
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate: 'CPU' },
           runningMode: 'VIDEO', numHands: 1
         });
-        
+
         loader.style.display = 'none';
         requestAnimationFrame(predictWebcam);
         initVoiceCommands();
@@ -429,12 +676,13 @@
         document.getElementById('loaderSubtext').textContent = "Please connect to the internet to load ML models.";
       }
     }
-    
+
     async function initCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true });
         video.srcObject = stream;
         await video.play();
+        initAudioMeter(stream);
         bootML();
       } catch (err) {
         document.getElementById('spinner').style.display = 'none';
@@ -449,7 +697,7 @@
         });
       }
     }
-    
+
     initCamera();
   </script>
 </body>
