@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aperture // Share</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/qrcode@1.4.4/build/qrcode.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: #fff;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background:
+        radial-gradient(900px 500px at 50% -10%, rgba(59,130,246,0.18), transparent 60%),
+        radial-gradient(700px 500px at 100% 110%, rgba(16,185,129,0.12), transparent 60%),
+        #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(15,15,20,0.45);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .brand svg {
+      width: 22px; height: 22px;
+      stroke: #fff; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .subtitle {
+      margin: 6px 0 22px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #9ca3af;
+      letter-spacing: 0.02em;
+    }
+
+    .qr-stage {
+      background: #fff;
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 280px;
+      margin-bottom: 18px;
+    }
+    .qr-stage canvas { width: 240px !important; height: 240px !important; image-rendering: pixelated; }
+    .qr-empty { color: #6b7280; font-size: 13px; font-weight: 600; text-align: center; }
+
+    .url-echo {
+      font-size: 12px;
+      font-weight: 600;
+      color: #cbd5e1;
+      text-align: center;
+      word-break: break-all;
+      margin-bottom: 20px;
+      letter-spacing: 0.02em;
+    }
+
+    .field-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #6b7280;
+      margin-bottom: 8px;
+      display: block;
+    }
+    input[type="text"] {
+      width: 100%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 14px;
+      padding: 14px 16px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 18px;
+    }
+    input[type="text"]:focus { border-color: rgba(59,130,246,0.7); }
+
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn {
+      border: none;
+      border-radius: 14px;
+      padding: 14px;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.12s, opacity 0.2s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn svg { width: 16px; height: 16px; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .btn-primary { grid-column: 1 / -1; background: #fff; color: #000; }
+    .btn-primary svg { stroke: #000; }
+    .btn-ghost {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #fff;
+    }
+    .btn-ghost svg { stroke: #fff; }
+    .btn[disabled] { opacity: 0.4; pointer-events: none; }
+
+    .toast {
+      position: fixed;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(15,15,20,0.9);
+      border: 1px solid rgba(255,255,255,0.14);
+      backdrop-filter: blur(18px);
+      padding: 12px 20px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.2,0,0,1);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Print: just the QR + caption on a clean white page */
+    @media print {
+      body { background: #fff; color: #000; display: block; padding: 0; }
+      .card { box-shadow: none; border: none; background: #fff; max-width: none; margin: 0 auto; padding: 40px; }
+      .subtitle { color: #444; }
+      input, .actions, .field-label { display: none !important; }
+      .qr-stage { min-height: auto; padding: 0; }
+      .qr-stage canvas { width: 320px !important; height: 320px !important; }
+      .url-echo { color: #000; font-size: 14px; }
+      .brand svg { stroke: #000; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"></circle>
+        <circle cx="12" cy="12" r="3"></circle>
+        <line x1="12" y1="2" x2="12" y2="4"></line>
+        <line x1="12" y1="20" x2="12" y2="22"></line>
+        <line x1="2" y1="12" x2="4" y2="12"></line>
+        <line x1="20" y1="12" x2="22" y2="12"></line>
+      </svg>
+      Aperture
+    </div>
+    <p class="subtitle">Scan to open the camera &mdash; no typing.</p>
+
+    <div class="qr-stage">
+      <canvas id="qr" style="display:none;"></canvas>
+      <div class="qr-empty" id="empty">Enter a link to generate a code</div>
+    </div>
+
+    <p class="url-echo" id="urlEcho"></p>
+
+    <label class="field-label" for="linkInput">App link</label>
+    <input type="text" id="linkInput" value="https://greamses.github.io/AI-CAM/" placeholder="https://your-app.web.app" autocomplete="off" spellcheck="false">
+
+    <div class="actions">
+      <button class="btn btn-primary" id="downloadBtn">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Download PNG
+      </button>
+      <button class="btn btn-ghost" id="printBtn">
+        <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        Print
+      </button>
+      <button class="btn btn-ghost" id="copyBtn">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        Copy link
+      </button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const input = document.getElementById('linkInput');
+    const canvas = document.getElementById('qr');
+    const empty = document.getElementById('empty');
+    const urlEcho = document.getElementById('urlEcho');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const printBtn = document.getElementById('printBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const toast = document.getElementById('toast');
+
+    let currentUrl = '';
+    let t;
+
+    function normalize(raw) {
+      let v = raw.trim();
+      if (!v) return '';
+      if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+      return v;
+    }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(t);
+      t = setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    function setReady(ready) {
+      [downloadBtn, printBtn, copyBtn].forEach(b => b.disabled = !ready);
+    }
+
+    function render() {
+      const url = normalize(input.value);
+      currentUrl = url;
+      if (!url) {
+        canvas.style.display = 'none';
+        empty.style.display = 'block';
+        urlEcho.textContent = '';
+        setReady(false);
+        return;
+      }
+      QRCode.toCanvas(canvas, url, {
+        width: 240, margin: 2, errorCorrectionLevel: 'M',
+        color: { dark: '#0a0a0a', light: '#ffffff' }
+      }, (err) => {
+        if (err) { showToast('Could not generate code'); return; }
+        canvas.style.display = 'block';
+        empty.style.display = 'none';
+        urlEcho.textContent = url;
+        setReady(true);
+      });
+    }
+
+    input.addEventListener('input', render);
+
+    downloadBtn.addEventListener('click', () => {
+      if (!currentUrl) return;
+      QRCode.toDataURL(currentUrl, {
+        width: 1024, margin: 4, errorCorrectionLevel: 'H',
+        color: { dark: '#000000', light: '#ffffff' }
+      }, (err, dataUrl) => {
+        if (err) { showToast('Download failed'); return; }
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'aperture-qr.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast('Saved print-res PNG');
+      });
+    });
+
+    printBtn.addEventListener('click', () => window.print());
+
+    copyBtn.addEventListener('click', async () => {
+      if (!currentUrl) return;
+      try {
+        await navigator.clipboard.writeText(currentUrl);
+        showToast('Link copied');
+      } catch {
+        showToast('Copy not supported here');
+      }
+    });
+
+    // Make sure the QR lib loaded before first render
+    if (window.QRCode) {
+      render();
+    } else {
+      window.addEventListener('load', () => {
+        if (window.QRCode) render();
+        else { empty.textContent = 'QR library failed to load — check connection'; }
+      });
+    }
+  </script>
+</body>
+</html>
